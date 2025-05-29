@@ -5,7 +5,7 @@ export async function GET() {
   try {
     // Check for credentials in JSON format first
     let credentials;
-    let spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
     if (process.env.GOOGLE_SHEETS_CREDENTIALS) {
       try {

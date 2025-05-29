@@ -1,15 +1,6 @@
 'use client';
 
-type StatCardProps = {
-  title: string;
-  value: string | number;
-  description?: string;
-  icon?: React.ReactNode;
-  change?: {
-    value: number;
-    isPositive: boolean;
-  };
-};
+import { StatCardProps } from '@/types';
 
 export default function StatCard({ 
   title, 

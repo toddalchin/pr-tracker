@@ -2,7 +2,7 @@
 
 import StatCard from './StatCard';
 import DataTable from './DataTable';
-import { CoverageItem, EventItem, OutreachItem } from '@/lib/supabase';
+import { CoverageItem, EventItem, OutreachItem } from '@/types';
 import Link from 'next/link';
 
 type DashboardProps = {
@@ -19,7 +19,12 @@ export default function Dashboard({
   lastUpdated
 }: DashboardProps) {
   // Calculate total reach
-  const totalReach = coverageItems.reduce((sum, item) => sum + item.reach, 0);
+  const totalReach = coverageItems.reduce((sum, item) => {
+    const reach = typeof item.reach === 'string' ? 
+      parseInt(item.reach.replace(/,/g, '') || '0') : 
+      item.reach;
+    return sum + reach;
+  }, 0);
   
   // Calculate pending outreach
   const pendingOutreach = outreachItems.filter(item => item.status === 'pending').length;
@@ -60,7 +65,12 @@ export default function Dashboard({
     {
       header: 'Reach',
       accessorKey: 'reach',
-      cell: (row: CoverageItem) => row.reach.toLocaleString(),
+      cell: (row: CoverageItem) => {
+        const reach = typeof row.reach === 'string' ? 
+          parseInt(row.reach.replace(/,/g, '') || '0') : 
+          row.reach;
+        return reach.toLocaleString();
+      },
     },
   ];
 

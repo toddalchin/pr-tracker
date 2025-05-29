@@ -1,21 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { Column } from '@/types';
 
-export type Column = {
-  header: string;
-  accessorKey: string;
-  cell?: (info: any) => React.ReactNode;
-};
-
-type DataTableProps<T extends Record<string, any>> = {
+type DataTableProps<T extends Record<string, unknown>> = {
   data: T[];
   columns: Column[];
   title?: string;
   emptyMessage?: string;
 };
 
-export default function DataTable<T extends Record<string, any>>({
+export default function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   title,
@@ -93,7 +88,7 @@ export default function DataTable<T extends Record<string, any>>({
                     >
                       {column.cell
                         ? column.cell(row)
-                        : row[column.accessorKey]}
+                        : String(row[column.accessorKey] ?? '')}
                     </td>
                   ))}
                 </tr>
