@@ -5,22 +5,22 @@ import Header from '@/components/Header';
 
 interface WorksheetData {
   success: boolean;
-  sheets: Record<string, any[]>;
+  sheets: Record<string, Record<string, unknown>[]>;
   sheetNames: string[];
   timestamp: string;
 }
 
 export default function WorksheetsPage() {
-  const [data, setData] = useState<WorksheetData | null>(null);
+  const [worksheetData, setWorksheetData] = useState<WorksheetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSheet, setSelectedSheet] = useState<string>('');
+  const [selectedWorksheet, setSelectedWorksheet] = useState<string>('');
 
   useEffect(() => {
-    fetchAllSheetsData();
+    fetchAllWorksheets();
   }, []);
 
-  const fetchAllSheetsData = async () => {
+  const fetchAllWorksheets = async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/sheets/all');
@@ -28,12 +28,14 @@ export default function WorksheetsPage() {
         throw new Error('Failed to fetch worksheet data');
       }
       const result = await response.json();
-      setData(result);
+      setWorksheetData(result);
+      
+      // Set first worksheet as default
       if (result.sheetNames && result.sheetNames.length > 0) {
-        setSelectedSheet(result.sheetNames[0]);
+        setSelectedWorksheet(result.sheetNames[0]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load worksheet data');
+      setError(err instanceof Error ? err.message : 'Failed to load worksheets');
     } finally {
       setLoading(false);
     }
@@ -43,10 +45,10 @@ export default function WorksheetsPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
-        <div className="flex items-center justify-center py-20">
+        <div className="container mx-auto py-8 px-4">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading all worksheets...</p>
+            <p className="mt-4 text-gray-600">Loading worksheets...</p>
           </div>
         </div>
       </div>
@@ -57,118 +59,86 @@ export default function WorksheetsPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
-        <div className="flex items-center justify-center py-20">
+        <div className="container mx-auto py-8 px-4">
           <div className="text-center">
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              <p className="font-bold">Error loading worksheet data</p>
-              <p>{error}</p>
-              <button 
-                onClick={fetchAllSheetsData}
-                className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-              >
-                Retry
-              </button>
-            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Worksheets</h2>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button 
+              onClick={fetchAllWorksheets}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  if (!data) {
+  if (!worksheetData || !worksheetData.sheetNames.length) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
-        <div className="flex items-center justify-center py-20">
-          <p className="text-gray-600">No data available</p>
+        <div className="container mx-auto py-8 px-4">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">No Worksheets Found</h2>
+            <p className="text-gray-600">No worksheets were found in the Google Sheet.</p>
+          </div>
         </div>
       </div>
     );
   }
 
-  const currentSheetData = selectedSheet ? data.sheets[selectedSheet] || [] : [];
-  const headers = currentSheetData.length > 0 ? Object.keys(currentSheetData[0]).filter(key => key !== 'id') : [];
+  const currentData = selectedWorksheet ? worksheetData.sheets[selectedWorksheet] || [] : [];
+  const headers = currentData.length > 0 ? Object.keys(currentData[0]).filter(key => key !== 'id') : [];
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">All Worksheets</h1>
-            <p className="text-gray-600">View data from all {data.sheetNames.length} worksheets in your Google Sheet</p>
-            <p className="text-sm text-gray-500 mt-1">Last updated: {new Date(data.timestamp).toLocaleString()}</p>
-          </div>
+      <div className="container mx-auto py-8 px-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">All Worksheets</h1>
+          <p className="text-gray-600">
+            View data from all {worksheetData.sheetNames.length} worksheets in your Google Sheet
+          </p>
+          <p className="text-sm text-gray-500 mt-1">
+            Last updated: {new Date(worksheetData.timestamp).toLocaleString()}
+          </p>
+        </div>
 
-          {/* Worksheet Selector */}
-          <div className="mb-6">
-            <label htmlFor="worksheet-select" className="block text-sm font-medium text-gray-700 mb-2">
-              Select Worksheet:
-            </label>
-            <select
-              id="worksheet-select"
-              value={selectedSheet}
-              onChange={(e) => setSelectedSheet(e.target.value)}
-              className="block w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            >
-              {data.sheetNames.map((sheetName) => (
-                <option key={sheetName} value={sheetName}>
-                  {sheetName} ({data.sheets[sheetName]?.length || 0} rows)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Worksheet Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {data.sheetNames.map((sheetName) => (
-              <div
-                key={sheetName}
-                className={`bg-white overflow-hidden shadow rounded-lg cursor-pointer transition-all duration-200 ${
-                  selectedSheet === sheetName 
-                    ? 'ring-2 ring-blue-500 shadow-lg' 
-                    : 'hover:shadow-md'
-                }`}
-                onClick={() => setSelectedSheet(sheetName)}
-              >
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-blue-600 font-semibold text-sm">
-                          {sheetName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                          {sheetName}
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {data.sheets[sheetName]?.length || 0} rows
-                        </dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        {/* Worksheet Selector */}
+        <div className="mb-6">
+          <label htmlFor="worksheet-select" className="block text-sm font-medium text-gray-700 mb-2">
+            Select Worksheet:
+          </label>
+          <select
+            id="worksheet-select"
+            value={selectedWorksheet}
+            onChange={(e) => setSelectedWorksheet(e.target.value)}
+            className="block w-full max-w-md px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          >
+            {worksheetData.sheetNames.map((sheetName) => (
+              <option key={sheetName} value={sheetName}>
+                {sheetName} ({worksheetData.sheets[sheetName]?.length || 0} rows)
+              </option>
             ))}
-          </div>
+          </select>
+        </div>
 
-          {/* Selected Worksheet Data */}
-          {selectedSheet && (
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <div className="px-4 py-5 sm:px-6">
-                <h3 className="text-lg leading-6 font-medium text-gray-900">
-                  {selectedSheet} Data
-                </h3>
-                <p className="mt-1 max-w-2xl text-sm text-gray-500">
-                  {currentSheetData.length} rows of data
-                </p>
-              </div>
-              
-              {currentSheetData.length > 0 ? (
+        {/* Data Display */}
+        {selectedWorksheet && (
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">
+                {selectedWorksheet}
+              </h2>
+              <p className="text-sm text-gray-500">
+                {currentData.length} {currentData.length === 1 ? 'row' : 'rows'}
+              </p>
+            </div>
+            
+            <div className="p-6">
+              {currentData.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -185,14 +155,14 @@ export default function WorksheetsPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {currentSheetData.slice(0, 50).map((row, index) => (
+                      {currentData.slice(0, 50).map((row, index) => (
                         <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                           {headers.map((header) => (
                             <td
                               key={header}
                               className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
                             >
-                              {row[header] || '-'}
+                              {String(row[header] || '-')}
                             </td>
                           ))}
                         </tr>
@@ -200,23 +170,23 @@ export default function WorksheetsPage() {
                     </tbody>
                   </table>
                   
-                  {currentSheetData.length > 50 && (
+                  {currentData.length > 50 && (
                     <div className="bg-gray-50 px-4 py-3 text-center">
                       <p className="text-sm text-gray-500">
-                        Showing first 50 rows of {currentSheetData.length} total rows
+                        Showing first 50 rows of {currentData.length} total rows
                       </p>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No data found in this worksheet</p>
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No data found in this worksheet.</p>
                 </div>
               )}
             </div>
-          )}
-        </div>
-      </main>
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

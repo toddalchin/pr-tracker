@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Area, AreaChart } from 'recharts';
+import { useState, useEffect, useCallback } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart } from 'recharts';
 import { Calendar, TrendingUp, Award, Users, Target, Clock, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface WorksheetData {
   success: boolean;
-  sheets: Record<string, any[]>;
+  sheets: Record<string, Record<string, unknown>[]>;
   sheetNames: string[];
   timestamp: string;
 }
@@ -51,11 +51,45 @@ export default function EnhancedDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
 
-  useEffect(() => {
-    fetchAllSheetsData();
+  const calculateMetrics = useCallback((data: WorksheetData) => {
+    const mediaTracker = data.sheets['Media Tracker'] || [];
+    const awards = data.sheets['Awards'] || [];
+    const mediaRelations = data.sheets['Media Relations'] || [];
+    
+    const totalCoverage = mediaTracker.length;
+    const totalAwards = awards.length;
+    
+    // Calculate response rate from media relations
+    const submitted = mediaRelations.filter(item => {
+      const status = String(item.Status || '').toLowerCase();
+      return status.includes('submitted') || status.includes('response');
+    }).length;
+    const responses = mediaRelations.filter(item => {
+      const status = String(item.Status || '').toLowerCase();
+      return !status.includes('didn\'t get') && status.includes('submitted');
+    }).length;
+    const responseRate = submitted > 0 ? Math.round((responses / submitted) * 100) : 0;
+    
+    // Count upcoming deadlines (next 30 days)
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const upcomingDeadlines = [...mediaRelations, ...awards].filter(item => {
+      const dateStr = String(item['Date / Deadline'] || item['Date Announced'] || '');
+      const deadline = new Date(dateStr);
+      return !isNaN(deadline.getTime()) && deadline >= now && deadline <= thirtyDaysFromNow;
+    }).length;
+
+    setMetrics({
+      totalCoverage,
+      totalAwards,
+      responseRate,
+      upcomingDeadlines,
+      coverageTrend: 23, // Mock trend data
+      awardsTrend: 15
+    });
   }, []);
 
-  const fetchAllSheetsData = async () => {
+  const fetchAllSheetsData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/sheets/all');
@@ -70,44 +104,11 @@ export default function EnhancedDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [calculateMetrics]);
 
-  const calculateMetrics = (data: WorksheetData) => {
-    const mediaTracker = data.sheets['Media Tracker'] || [];
-    const awards = data.sheets['Awards'] || [];
-    const mediaRelations = data.sheets['Media Relations'] || [];
-    
-    const totalCoverage = mediaTracker.length;
-    const totalAwards = awards.length;
-    
-    // Calculate response rate from media relations
-    const submitted = mediaRelations.filter(item => 
-      item.Status?.toLowerCase().includes('submitted') || 
-      item.Status?.toLowerCase().includes('response')
-    ).length;
-    const responses = mediaRelations.filter(item => 
-      item.Status?.toLowerCase().includes('didn\'t get') === false &&
-      item.Status?.toLowerCase().includes('submitted')
-    ).length;
-    const responseRate = submitted > 0 ? Math.round((responses / submitted) * 100) : 0;
-    
-    // Count upcoming deadlines (next 30 days)
-    const now = new Date();
-    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const upcomingDeadlines = [...mediaRelations, ...awards].filter(item => {
-      const deadline = new Date(item['Date / Deadline'] || item['Date Announced'] || '');
-      return deadline >= now && deadline <= thirtyDaysFromNow;
-    }).length;
-
-    setMetrics({
-      totalCoverage,
-      totalAwards,
-      responseRate,
-      upcomingDeadlines,
-      coverageTrend: 23, // Mock trend data
-      awardsTrend: 15
-    });
-  };
+  useEffect(() => {
+    fetchAllSheetsData();
+  }, [fetchAllSheetsData]);
 
   const getOutletData = (): ChartData[] => {
     if (!data) return [];
@@ -116,7 +117,7 @@ export default function EnhancedDashboard() {
     const outletCounts: Record<string, number> = {};
     
     mediaTracker.forEach(item => {
-      const outlet = item.Outlet || 'Unknown';
+      const outlet = String(item.Outlet || 'Unknown');
       outletCounts[outlet] = (outletCounts[outlet] || 0) + 1;
     });
     
@@ -134,7 +135,7 @@ export default function EnhancedDashboard() {
     
     mediaRelations.forEach(item => {
       let status = 'Other';
-      const statusText = item.Status?.toLowerCase() || '';
+      const statusText = String(item.Status || '').toLowerCase();
       
       if (statusText.includes('submitted') && statusText.includes('didn\'t get')) {
         status = 'Declined';
@@ -163,7 +164,8 @@ export default function EnhancedDashboard() {
     const monthCounts: Record<string, number> = {};
     
     mediaTracker.forEach(item => {
-      const date = new Date(item.Date || '');
+      const dateStr = String(item.Date || '');
+      const date = new Date(dateStr);
       if (!isNaN(date.getTime())) {
         const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;

@@ -48,6 +48,80 @@ function getGoogleSheetsClient() {
 }
 
 /**
+ * Fetch data from all Google Sheets worksheets
+ */
+export async function getGoogleSheetsData(): Promise<{
+  success: boolean;
+  sheets: Record<string, Record<string, unknown>[]>;
+  sheetNames: string[];
+}> {
+  try {
+    const sheets = getGoogleSheetsClient();
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    
+    if (!sheets || !spreadsheetId) {
+      console.error('Google Sheets client or spreadsheet ID not available');
+      return { success: false, sheets: {}, sheetNames: [] };
+    }
+    
+    // Get spreadsheet metadata to see all available sheets
+    const spreadsheetInfo = await sheets.spreadsheets.get({
+      spreadsheetId,
+    });
+    
+    const sheetNames = (spreadsheetInfo.data.sheets || [])
+      .map(sheet => sheet.properties?.title)
+      .filter((name): name is string => Boolean(name));
+    
+    console.log('Available sheets:', sheetNames);
+
+    // Fetch data from all sheets
+    const allSheetsData: Record<string, Record<string, unknown>[]> = {};
+    
+    for (const sheetName of sheetNames) {
+      try {
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${sheetName}!A:Z`, // Get all columns
+        });
+
+        const rows = response.data.values || [];
+        
+        if (rows.length > 0) {
+          const headers = rows[0];
+          const data = rows.slice(1).map((row, index) => {
+            const rowData: Record<string, unknown> = { id: index.toString() };
+            headers.forEach((header, colIndex) => {
+              if (header && typeof header === 'string') {
+                rowData[header] = row[colIndex] || '';
+              }
+            });
+            return rowData;
+          });
+          
+          allSheetsData[sheetName] = data;
+          console.log(`Fetched ${data.length} rows from ${sheetName}`);
+        } else {
+          allSheetsData[sheetName] = [];
+        }
+      } catch (sheetError) {
+        console.error(`Error fetching data from sheet ${sheetName}:`, sheetError);
+        allSheetsData[sheetName] = [];
+      }
+    }
+
+    return {
+      success: true,
+      sheets: allSheetsData,
+      sheetNames
+    };
+  } catch (error) {
+    console.error('Error fetching all sheets data:', error);
+    return { success: false, sheets: {}, sheetNames: [] };
+  }
+}
+
+/**
  * Fetch coverage data from Google Sheets
  */
 export async function fetchCoverageData(): Promise<CoverageItem[]> {
