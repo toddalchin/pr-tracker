@@ -18,12 +18,25 @@ export default function EventsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/sheets');
+      const response = await fetch('/api/sheets/all');
       if (!response.ok) {
         throw new Error('Failed to fetch data');
       }
       const result = await response.json();
-      setData(result.data || []);
+      const speakingOpps = result.sheets['Speaking Opps'] || [];
+      
+      // Convert to EventItem format
+      const eventData = speakingOpps.map((item: Record<string, unknown>, index: number) => ({
+        id: index.toString(),
+        name: String(item.Event || item.Name || ''),
+        date: String(item.Date || item['Date / Deadline'] || ''),
+        location: String(item.Location || item.Venue || ''),
+        description: String(item.Topic || item.Description || ''),
+        status: String(item.Status || 'upcoming') as EventItem['status'],
+        created_at: new Date().toISOString(),
+      }));
+      
+      setData(eventData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
@@ -38,24 +51,28 @@ export default function EventsPage() {
       accessorKey: 'date',
     },
     {
-      header: 'Outlet',
-      accessorKey: 'outlet',
+      header: 'Event Name',
+      accessorKey: 'name',
     },
     {
-      header: 'Topic',
-      accessorKey: 'title',
+      header: 'Location',
+      accessorKey: 'location',
+    },
+    {
+      header: 'Description/Topic',
+      accessorKey: 'description',
     },
     {
       header: 'Status',
-      accessorKey: 'reach',
-    },
-    {
-      header: 'Reporter',
-      accessorKey: 'reporter',
-    },
-    {
-      header: 'Type',
-      accessorKey: 'type',
+      accessorKey: 'status',
+      cell: (row: Record<string, unknown>) => {
+        const status = String(row.status || '');
+        const colorClass = status.toLowerCase().includes('confirmed') ? 'text-green-600' :
+                          status.toLowerCase().includes('pending') ? 'text-yellow-600' :
+                          status.toLowerCase().includes('cancelled') ? 'text-red-600' :
+                          'text-gray-600';
+        return <span className={colorClass}>{status}</span>;
+      },
     }
   ];
 

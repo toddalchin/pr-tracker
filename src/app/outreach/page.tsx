@@ -18,12 +18,26 @@ export default function OutreachPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/sheets');
+      const response = await fetch('/api/sheets/all');
       if (!response.ok) {
         throw new Error('Failed to fetch data');
       }
       const result = await response.json();
-      setData(result.data || []);
+      const mediaRelations = result.sheets['Media Relations'] || [];
+      
+      // Convert to OutreachItem format
+      const outreachData = mediaRelations.map((item: Record<string, unknown>, index: number) => ({
+        id: index.toString(),
+        contact_name: String(item.Reporter || item.Contact || ''),
+        outlet: String(item.Outlet || ''),
+        email: String(item.Email || ''),
+        pitch_date: String(item['Date / Deadline'] || item.Date || ''),
+        status: String(item.Status || 'pending') as OutreachItem['status'],
+        notes: String(item.Topic || item.Notes || ''),
+        created_at: new Date().toISOString(),
+      }));
+      
+      setData(outreachData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data');
     } finally {
@@ -35,27 +49,35 @@ export default function OutreachPage() {
   const outreachColumns = [
     {
       header: 'Date',
-      accessorKey: 'date',
+      accessorKey: 'pitch_date',
+    },
+    {
+      header: 'Contact',
+      accessorKey: 'contact_name',
     },
     {
       header: 'Outlet',
       accessorKey: 'outlet',
     },
     {
-      header: 'Topic',
-      accessorKey: 'title',
-    },
-    {
       header: 'Status',
-      accessorKey: 'reach',
+      accessorKey: 'status',
+      cell: (row: Record<string, unknown>) => {
+        const status = String(row.status || '');
+        const colorClass = status.toLowerCase().includes('submitted') ? 'text-blue-600' :
+                          status.toLowerCase().includes('scheduled') ? 'text-green-600' :
+                          status.toLowerCase().includes('didn\'t get') ? 'text-red-600' :
+                          'text-gray-600';
+        return <span className={colorClass}>{status}</span>;
+      },
     },
     {
-      header: 'Reporter',
-      accessorKey: 'reporter',
+      header: 'Topic/Notes',
+      accessorKey: 'notes',
     },
     {
-      header: 'Type',
-      accessorKey: 'type',
+      header: 'Email',
+      accessorKey: 'email',
     }
   ];
 
