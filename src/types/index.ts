@@ -1,6 +1,6 @@
 // Shared type definitions for the PR Dashboard
 
-export interface CoverageItem {
+export interface CoverageItem extends Record<string, unknown> {
   outlet: string;
   title: string;
   date: string;
@@ -10,7 +10,7 @@ export interface CoverageItem {
   type?: string;
 }
 
-export interface OutreachItem {
+export interface OutreachItem extends Record<string, unknown> {
   id: string;
   outlet: string;
   reporter: string;
@@ -21,7 +21,7 @@ export interface OutreachItem {
   notes?: string;
 }
 
-export interface EventItem {
+export interface EventItem extends Record<string, unknown> {
   id: string;
   name: string;
   date: string;

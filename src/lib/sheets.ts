@@ -5,13 +5,13 @@ import { CoverageItem, OutreachItem, EventItem } from './supabase';
 type GoogleCredentials = {
   client_email?: string;
   private_key?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 };
 
 // Helper to safely parse JSON
-function safeJsonParse(jsonString: string): any {
+function safeJsonParse(jsonString: string): Record<string, unknown> {
   try {
-    return JSON.parse(jsonString);
+    return JSON.parse(jsonString) as Record<string, unknown>;
   } catch (e) {
     console.error('Error parsing JSON:', e);
     return {};

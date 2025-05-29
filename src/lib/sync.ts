@@ -13,7 +13,7 @@ export async function syncCoverageData() {
     await supabase.from('coverage').delete().not('id', 'is', null);
     
     // Insert new data from Google Sheets
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('coverage')
       .insert(coverageData);
       
@@ -40,7 +40,7 @@ export async function syncOutreachData() {
     await supabase.from('outreach').delete().not('id', 'is', null);
     
     // Insert new data from Google Sheets
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('outreach')
       .insert(outreachData);
       
@@ -67,7 +67,7 @@ export async function syncEventsData() {
     await supabase.from('events').delete().not('id', 'is', null);
     
     // Insert new data from Google Sheets
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('events')
       .insert(eventsData);
       

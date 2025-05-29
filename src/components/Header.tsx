@@ -11,7 +11,7 @@ export default function Header() {
       <div className="container mx-auto flex justify-between items-center">
         <div className="flex items-center space-x-2">
           <Link href="/" className="text-xl font-bold flex items-center">
-            <span className="text-blue-500 mr-1">Oh S#!T</span> We're Famous
+            <span className="text-blue-500 mr-1">Oh S#!T</span> We&apos;re Famous
           </Link>
         </div>
 

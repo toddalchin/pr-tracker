@@ -51,24 +51,24 @@ export default function Dashboard({
     {
       header: 'Title',
       accessorKey: 'title',
-      cell: (row: CoverageItem) => (
+      cell: (row: Record<string, unknown>) => (
         <a 
-          href={row.url} 
+          href={String(row.url || '')} 
           target="_blank" 
           rel="noopener noreferrer"
           className="text-blue-600 hover:underline"
         >
-          {row.title}
+          {String(row.title || '')}
         </a>
       ),
     },
     {
       header: 'Reach',
       accessorKey: 'reach',
-      cell: (row: CoverageItem) => {
+      cell: (row: Record<string, unknown>) => {
         const reach = typeof row.reach === 'string' ? 
-          parseInt(row.reach.replace(/,/g, '') || '0') : 
-          row.reach;
+          parseInt(String(row.reach).replace(/,/g, '') || '0') : 
+          Number(row.reach || 0);
         return reach.toLocaleString();
       },
     },
