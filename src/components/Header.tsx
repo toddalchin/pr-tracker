@@ -50,6 +50,9 @@ export default function Header() {
           <Link href="/events" className="hover:text-blue-300 transition">
             Events
           </Link>
+          <Link href="/worksheets" className="hover:text-blue-300 transition">
+            All Worksheets
+          </Link>
         </nav>
       </div>
 
@@ -83,6 +86,13 @@ export default function Header() {
             onClick={() => setIsMenuOpen(false)}
           >
             Events
+          </Link>
+          <Link 
+            href="/worksheets" 
+            className="block py-2 hover:bg-gray-800 px-3 rounded"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            All Worksheets
           </Link>
         </nav>
       )}
