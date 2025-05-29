@@ -41,6 +41,9 @@ export default function Header() {
           <Link href="/" className="hover:text-blue-300 transition">
             Dashboard
           </Link>
+          <Link href="/analytics" className="hover:text-blue-300 transition">
+            Analytics
+          </Link>
           <Link href="/coverage" className="hover:text-blue-300 transition">
             Coverage
           </Link>
@@ -65,6 +68,13 @@ export default function Header() {
             onClick={() => setIsMenuOpen(false)}
           >
             Dashboard
+          </Link>
+          <Link 
+            href="/analytics" 
+            className="block py-2 hover:bg-gray-800 px-3 rounded"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            Analytics
           </Link>
           <Link 
             href="/coverage" 
