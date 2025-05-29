@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import DataTable from '@/components/DataTable';
 import { CoverageItem } from '@/types';
+import { getPublicationInfo } from '@/lib/publicationData';
 import Link from 'next/link';
 
 export default function CoveragePage() {
@@ -25,17 +26,26 @@ export default function CoveragePage() {
       const result = await response.json();
       const mediaTracker = result.sheets['Media Tracker'] || [];
       
-      // Convert to CoverageItem format
-      const coverageData = mediaTracker.map((item: Record<string, unknown>, index: number) => ({
-        id: index.toString(),
-        outlet: String(item.Outlet || ''),
-        title: String(item.Title || item.Topic || ''),
-        url: String(item.URL || item.Link || ''),
-        date: String(item.Date || ''),
-        reach: String(item.Reach || item.Audience || ''),
-        notes: String(item.Notes || ''),
-        created_at: new Date().toISOString(),
-      }));
+      // Convert to CoverageItem format with enhanced data
+      const coverageData = mediaTracker.map((item: Record<string, unknown>, index: number) => {
+        const outlet = String(item.Outlet || '');
+        const pubInfo = getPublicationInfo(outlet);
+        
+        return {
+          id: index.toString(),
+          outlet,
+          title: String(item.Title || item.Topic || ''),
+          url: String(item.URL || item.Link || ''),
+          date: String(item.Date || ''),
+          reach: String(item.Reach || pubInfo.estimatedReach.toLocaleString()),
+          notes: String(item.Notes || ''),
+          created_at: new Date().toISOString(),
+          // Add enhanced fields
+          estimatedReach: pubInfo.estimatedReach,
+          tier: pubInfo.tier,
+          category: pubInfo.category
+        };
+      });
       
       setData(coverageData);
     } catch (err) {
@@ -45,47 +55,87 @@ export default function CoveragePage() {
     }
   };
 
-  // Coverage table columns
+  // Enhanced coverage table columns
   const coverageColumns = [
     {
       header: 'Date',
       accessorKey: 'date',
+      cell: (row: Record<string, unknown>) => {
+        const date = new Date(String(row.date || ''));
+        return date.toLocaleDateString();
+      },
     },
     {
       header: 'Outlet',
       accessorKey: 'outlet',
+      cell: (row: Record<string, unknown>) => {
+        const tier = String(row.tier || '');
+        const outlet = String(row.outlet || '');
+        return (
+          <div className="flex items-center">
+            <span className={`inline-block w-2 h-2 rounded-full mr-2 ${
+              tier === 'tier1' ? 'bg-green-500' : 
+              tier === 'tier2' ? 'bg-yellow-500' : 'bg-gray-400'
+            }`}></span>
+            <span className="font-medium">{outlet}</span>
+            {tier === 'tier1' && <span className="ml-1 text-yellow-500">⭐</span>}
+          </div>
+        );
+      },
     },
     {
       header: 'Title',
       accessorKey: 'title',
-      cell: (row: Record<string, unknown>) => (
-        <a 
-          href={String(row.url || '')} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
-        >
-          {String(row.title || '')}
-        </a>
-      ),
-    },
-    {
-      header: 'Reach',
-      accessorKey: 'reach',
       cell: (row: Record<string, unknown>) => {
-        const reach = typeof row.reach === 'string' ? 
-          parseInt(String(row.reach).replace(/,/g, '') || '0') : 
-          Number(row.reach || 0);
-        return reach.toLocaleString();
+        const url = String(row.url || '');
+        const title = String(row.title || '');
+        
+        if (url) {
+          return (
+            <a 
+              href={url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-purple-600 hover:text-purple-800 hover:underline font-medium"
+            >
+              {title} →
+            </a>
+          );
+        }
+        return <span className="text-gray-900">{title}</span>;
       },
     },
     {
-      header: 'Reporter',
-      accessorKey: 'reporter',
+      header: 'Estimated Reach',
+      accessorKey: 'estimatedReach',
+      cell: (row: Record<string, unknown>) => {
+        const reach = Number(row.estimatedReach || 0);
+        return (
+          <span className="font-semibold text-green-600">
+            {(reach / 1000000).toFixed(1)}M
+          </span>
+        );
+      },
     },
     {
-      header: 'Type',
-      accessorKey: 'type',
+      header: 'Category',
+      accessorKey: 'category',
+      cell: (row: Record<string, unknown>) => {
+        const category = String(row.category || '');
+        const colorClass = {
+          'tech': 'bg-blue-100 text-blue-800',
+          'business': 'bg-green-100 text-green-800',
+          'general': 'bg-purple-100 text-purple-800',
+          'trade': 'bg-orange-100 text-orange-800',
+          'other': 'bg-gray-100 text-gray-800'
+        }[category] || 'bg-gray-100 text-gray-800';
+        
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
+            {category}
+          </span>
+        );
+      },
     }
   ];
 
@@ -126,6 +176,9 @@ export default function CoveragePage() {
     );
   }
 
+  const totalReach = data.reduce((sum, item) => sum + (Number(item.estimatedReach) || 0), 0);
+  const tier1Count = data.filter(item => item.tier === 'tier1').length;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-yellow-100">
       <Header />
@@ -137,10 +190,20 @@ export default function CoveragePage() {
               📰 Media Coverage
             </h1>
             <p className="text-gray-700 mt-2">All the places you&apos;re making headlines!</p>
+            <div className="flex items-center space-x-6 mt-3 text-sm text-gray-600">
+              <span>📊 Total Reach: <strong>{(totalReach / 1000000).toFixed(1)}M</strong></span>
+              <span>⭐ Tier 1 Outlets: <strong>{tier1Count}</strong></span>
+              <span>📰 Total Coverage: <strong>{data.length}</strong></span>
+            </div>
           </div>
-          <Link href="/" className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg">
-            🏠 Back to Dashboard
-          </Link>
+          <div className="flex space-x-3">
+            <Link href="/dashboard" className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-blue-700 transition-all transform hover:scale-105 shadow-lg">
+              🏠 Dashboard
+            </Link>
+            <Link href="/" className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg">
+              📊 Analytics
+            </Link>
+          </div>
         </div>
         
         <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">

@@ -8,7 +8,11 @@
     "start": "next start -p 5454",
     "lint": "next lint",
     "kill-port": "lsof -ti:5454 | xargs kill -9 2>/dev/null || true",
-    "dev-clean": "npm run kill-port && npm run dev"
+    "dev-clean": "npm run kill-port && npm run dev",
+    "type-check": "tsc --noEmit --skipLibCheck",
+    "dev-debug": "npm run kill-port && npm run type-check && npm run dev",
+    "reset": "rm -rf .next && npm run dev-clean",
+    "deploy": "npm run build && git add . && git commit -m 'Deploy updates' && git push"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
@@ -22,6 +26,7 @@
     "next": "15.2.4",
     "postcss": "8.4.27",
     "react": "^18.3.1",
+    "react-day-picker": "^9.7.0",
     "react-dom": "^18.3.1",
     "recharts": "^2.15.3",
     "tailwindcss": "3.3.3"

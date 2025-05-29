@@ -50,10 +50,10 @@ export default function Header() {
         {/* Desktop Navigation */}
         <nav className="hidden md:flex space-x-6">
           <Link href="/" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
-            Dashboard
-          </Link>
-          <Link href="/analytics" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Analytics
+          </Link>
+          <Link href="/dashboard" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
+            Dashboard
           </Link>
           <Link href="/coverage" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Coverage
@@ -78,14 +78,14 @@ export default function Header() {
             className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
             onClick={() => setIsMenuOpen(false)}
           >
-            🏠 Dashboard
+            📊 Analytics
           </Link>
           <Link 
-            href="/analytics" 
+            href="/dashboard" 
             className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
             onClick={() => setIsMenuOpen(false)}
           >
-            📊 Analytics
+            🏠 Dashboard
           </Link>
           <Link 
             href="/coverage" 

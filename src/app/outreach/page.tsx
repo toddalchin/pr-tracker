@@ -83,12 +83,12 @@ export default function OutreachPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-yellow-100">
         <Header />
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading outreach data...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+            <p className="mt-4 text-gray-700 font-medium">📧 Loading your outreach empire...</p>
           </div>
         </div>
       </div>
@@ -97,18 +97,19 @@ export default function OutreachPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-yellow-100">
         <Header />
         <div className="flex items-center justify-center py-20">
           <div className="text-center">
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              <p className="font-bold">Error loading outreach data</p>
-              <p>{error}</p>
+            <div className="text-6xl mb-4">😱</div>
+            <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md">
+              <p className="font-bold text-gray-900 text-lg">Oops! Outreach data went missing</p>
+              <p className="text-gray-600 mt-2">{error}</p>
               <button 
                 onClick={fetchData}
-                className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                className="mt-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105"
               >
-                Retry
+                🔄 Try Again
               </button>
             </div>
           </div>
@@ -117,24 +118,45 @@ export default function OutreachPage() {
     );
   }
 
+  const totalPitches = data.length;
+  const responsesReceived = data.filter(item => 
+    !String(item.status || '').toLowerCase().includes('didn\'t get')
+  ).length;
+  const responseRate = totalPitches > 0 ? Math.round((responsesReceived / totalPitches) * 100) : 0;
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-yellow-100">
       <Header />
       
       <main className="container mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">PR Outreach</h1>
-          <Link href="/" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Back to Dashboard
-          </Link>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 bg-clip-text text-transparent">
+              📧 PR Outreach
+            </h1>
+            <p className="text-gray-700 mt-2">Your pitch game is strong - keep those emails flying!</p>
+            <div className="flex items-center space-x-6 mt-3 text-sm text-gray-600">
+              <span>📊 Total Pitches: <strong>{totalPitches}</strong></span>
+              <span>💬 Response Rate: <strong>{responseRate}%</strong></span>
+              <span>✅ Responses: <strong>{responsesReceived}</strong></span>
+            </div>
+          </div>
+          <div className="flex space-x-3">
+            <Link href="/dashboard" className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-green-700 hover:to-blue-700 transition-all transform hover:scale-105 shadow-lg">
+              🏠 Dashboard
+            </Link>
+            <Link href="/" className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 shadow-lg">
+              📊 Analytics
+            </Link>
+          </div>
         </div>
         
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <div className="bg-white shadow-2xl rounded-2xl overflow-hidden">
           <DataTable
             data={data}
             columns={outreachColumns}
-            title="All PR Outreach"
-            emptyMessage="No outreach found"
+            title="🎯 All Your PR Pitches"
+            emptyMessage="No outreach found - time to start pitching!"
           />
         </div>
       </main>

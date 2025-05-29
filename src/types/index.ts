@@ -1,13 +1,18 @@
 // Shared type definitions for the PR Dashboard
 
 export interface CoverageItem extends Record<string, unknown> {
+  id: string;
   outlet: string;
   title: string;
-  date: string;
-  reach: string | number;
   url: string;
-  reporter?: string;
-  type?: string;
+  date: string;
+  reach: string;
+  notes: string;
+  created_at: string;
+  // Enhanced fields for publication data
+  estimatedReach?: number;
+  tier?: string;
+  category?: string;
 }
 
 export interface OutreachItem extends Record<string, unknown> {

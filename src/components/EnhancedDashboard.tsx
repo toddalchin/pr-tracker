@@ -371,7 +371,7 @@ export default function EnhancedDashboard() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -412,27 +412,6 @@ export default function EnhancedDashboard() {
               </defs>
             </AreaChart>
           </ResponsiveContainer>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-shadow">
-          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-            ⚡ Quick Actions
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-4 rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg">
-              <span className="text-xl mr-2">🎯</span>
-              Add New Pitch
-            </button>
-            <button className="bg-gradient-to-r from-pink-600 to-red-600 text-white p-4 rounded-xl hover:from-pink-700 hover:to-red-700 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg">
-              <span className="text-xl mr-2">🏆</span>
-              Submit Award Entry
-            </button>
-            <button className="bg-gradient-to-r from-green-600 to-blue-600 text-white p-4 rounded-xl hover:from-green-700 hover:to-blue-700 transition-all transform hover:scale-105 flex items-center justify-center shadow-lg">
-              <span className="text-xl mr-2">📅</span>
-              Schedule Follow-up
-            </button>
-          </div>
         </div>
       </div>
     </div>
