@@ -4,9 +4,5 @@
       "path": "/api/sync",
       "schedule": "*/15 * * * *"
     }
-  ],
-  "env": {
-    "GOOGLE_SHEET_ID": "@google_sheet_id",
-    "GOOGLE_SHEETS_CREDENTIALS": "@google_sheets_credentials"
-  }
+  ]
 } 
