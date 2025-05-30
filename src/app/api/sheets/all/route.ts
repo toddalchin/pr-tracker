@@ -6,7 +6,7 @@ const API_TIMEOUT = 45000; // 45 seconds
 export async function GET() {
   try {
     // Create a timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
+    const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
         reject(new Error('API request timed out'));
       }, API_TIMEOUT);

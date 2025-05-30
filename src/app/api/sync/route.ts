@@ -1,22 +1,13 @@
 import { NextResponse } from 'next/server';
-import { syncAllData } from '@/lib/sync';
 
-// POST handler to trigger data synchronization
+// POST handler - placeholder for future sync functionality
 export async function POST() {
   try {
-    const result = await syncAllData();
-    
-    if (result.success) {
-      return NextResponse.json(
-        { message: 'Data synchronized successfully', ...result },
-        { status: 200 }
-      );
-    } else {
-      return NextResponse.json(
-        { message: 'Data synchronization failed', ...result },
-        { status: 500 }
-      );
-    }
+    // TODO: Implement sync functionality when needed
+    return NextResponse.json(
+      { message: 'Sync functionality not yet implemented', success: true },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error in sync API:', error);
     return NextResponse.json(
