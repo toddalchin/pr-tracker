@@ -1,0 +1,122 @@
+
+# "Oh Sh#!t, We're Famous" PR Tracker - Project Setup Guide
+
+## Lessons Learned & Best Practices
+
+This document outlines critical lessons learned from previous attempts to build the PR tracker. Following these guidelines will help avoid the technical issues we encountered.
+
+## Project Architecture Decision
+
+### ✅ RECOMMENDED: Simple HTML/CSS/JS Approach
+- **Pros**: No hydration errors, simple deployment, fast loading, easier maintenance
+- **Implementation**: Static files with a simple Node.js server
+- **Perfect for**: Data-display dashboards that don't require complex state management
+
+### ⚠️ AVOID: Next.js (Unless Absolutely Necessary)
+- **Issues encountered**: Hydration errors, complex setup, dependency management problems
+- **Only use if**: You need server-side rendering, API routes, or complex routing
+
+## Setup Checklist
+
+### Directory Structure
+- Create a clean, dedicated project folder with descriptive name (no special characters)
+- Use consistent naming conventions (kebab-case recommended)
+- Keep structure flat for simple projects:
+  ```
+  pr-tracker/
+  ├── index.html
+  ├── styles.css
+  ├── script.js
+  ├── server.js
+  ├── assets/
+  │   └── logo.png
+  └── pages/
+      ├── coverage.html
+      ├── outreach.html
+      └── events.html
+  ```
+
+### Server Setup
+- Use simple Node.js HTTP server for static files
+- Implement port fallback mechanism:
+  ```javascript
+  // Use an array of ports to try
+  const PORTS = [3000, 3001, 3002, 3003, 3004, 8080];
+  
+  function startServer(portIndex = 0) {
+    if (portIndex >= PORTS.length) {
+      console.error('Could not start server. All ports in use.');
+      return;
+    }
+    const port = PORTS[portIndex];
+    server.once('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`Port ${port} is in use, trying next port...`);
+        startServer(portIndex + 1);
+      }
+    });
+    server.listen(port, () => {
+      console.log(`Server running at http://localhost:${port}/`);
+    });
+  }
+  ```
+
+### JavaScript Best Practices
+- Use feature detection, not browser detection
+- Implement modular JS with clear separation of concerns
+- Add robust error handling for all dynamic features
+- Test all interactive elements across browsers
+
+### Data Management
+- Start with static data embedded in HTML for MVP
+- For future iterations, consider simple fetch() calls to external API
+- Use localStorage for minimal client-side persistence if needed
+
+## Common Pitfalls to Avoid
+
+### 1. Framework Complexity
+- **Problem**: React/Next.js hydration errors are difficult to debug
+- **Solution**: Start with vanilla JS; add complexity only when needed
+
+### 2. Directory Confusion
+- **Problem**: Files placed in wrong locations, causing "module not found" errors
+- **Solution**: Use absolute paths in imports, maintain clear folder structure
+
+### 3. Environment Variables
+- **Problem**: Missing or misconfigured .env files
+- **Solution**: Document all required environment variables, provide examples
+
+### 4. Port Conflicts
+- **Problem**: Server won't start because ports are in use
+- **Solution**: Implement port fallback as shown above
+
+### 5. Dependency Hell
+- **Problem**: Incompatible or missing dependencies
+- **Solution**: Keep dependencies minimal, document versions
+
+### 6. Browser Compatibility
+- **Problem**: Features work in development but break in production
+- **Solution**: Test across browsers, use polyfills for modern JS features
+
+## Development Workflow
+
+1. Start with HTML structure and CSS styling
+2. Add basic interactivity with vanilla JS
+3. Implement data display and filtering
+4. Test thoroughly across devices and browsers
+5. Only then consider more advanced features
+
+## Resources
+
+- [MDN Web Docs](https://developer.mozilla.org/en-US/)
+- [CSS Tricks](https://css-tricks.com/)
+- [JavaScript.info](https://javascript.info/)
+
+## Moving Forward
+
+If you decide to use a framework in the future:
+- Document the setup process step-by-step
+- Create a troubleshooting guide for common errors
+- Consider using simpler alternatives (Alpine.js, Svelte) before reaching for React
+
+Remember: The simplest solution that meets requirements is usually the best solution.

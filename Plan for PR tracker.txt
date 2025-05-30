@@ -1,0 +1,63 @@
+
+PR Tracker Plan with Next.js, Vercel, and Supabase
+1. Project Setup
+# Create Next.js project
+npx create-next-app pr-tracker --typescript
+cd pr-tracker
+
+# Install dependencies
+npm install @supabase/supabase-js googleapis @tanstack/react-table react-query next-auth
+2. Google Sheets Integration
+Set up Google Cloud:
+* Create a project in Google Cloud Console
+* Enable Google Sheets API
+* Create a service account with read access to your Sheet
+* Download the credentials JSON file
+Create a utility for fetching sheet data:
+* Store the Google credentials securely (Vercel environment variables)
+* Create a function to pull data from the sheet
+3. Supabase Setup
+* Create a new Supabase project
+* Set up tables that mirror your Google Sheet structure:
+    * coverage (articles, mentions)
+    * outreach (pitches, contacts)
+    * events (upcoming opportunities)
+* Create a sync mechanism between Google Sheets and Supabase
+4. Next.js Implementation
+File structure:
+pr-tracker/
+├── app/                     # App router
+│   ├── api/                 # API routes
+│   │   ├── auth/            # Authentication
+│   │   ├── sync/            # Sheet sync endpoint
+│   │   └── webhook/         # Google webhook listener
+│   ├── coverage/            # Coverage page
+│   ├── outreach/            # Outreach page
+│   ├── events/              # Events page
+│   └── page.tsx             # Dashboard
+├── components/              # Reusable components
+├── lib/                     # Utility functions
+│   ├── supabase.ts          # Supabase client
+│   └── sheets.ts            # Google Sheets client
+└── public/                  # Static assets
+Authentication:
+* Set up NextAuth.js for secure access
+* Integrate with Supabase Auth
+5. Real-time Updates Strategy
+Option 1: Scheduled update (simpler)
+* Create a Vercel Cron Job to sync Google Sheet data to Supabase every 5-15 minutes
+* Use Supabase Realtime to update the UI when the database changes
+Option 2: Webhook approach (more responsive)
+* Create a Google Apps Script in your sheet that calls your API when edits occur
+* Have your API endpoint update Supabase
+* Use Supabase Realtime to update the UI
+6. UI Components
+* Dashboard with key metrics and recent updates
+* Filterable, sortable tables for coverage, outreach, and events
+* Calendar view for upcoming events
+* Export functionality
+7. Deployment
+* Configure environment variables in Vercel
+* Set up preview deployments for testing
+* Configure proper CORS settings
+

@@ -1,0 +1,45 @@
+Brand tone and guidelines.
+
+Color palette:
+
+Navy: 000A56
+Teal: 0AEABF
+Gray (dark): 666666
+Gray (light): C1C1C1
+Gold: E3C16E
+Red: ED5145
+
+Tone of voice:
+
+### **1. Clarity and Brevity**
+- **Direct but crafted**: Every sentence should serve a purpose, but aim to make the phrasing sharp and memorable. Each word should carry weight, cutting through the noise.
+- **Avoid jargon and business speak**: Still key. Use simple language, but choose words that have nuance and depth over generic terms.
+
+### **2. Conversational but Elevated Tone**
+- **Natural yet refined**: The writing should flow like a conversation, but with a layer of sophistication. You're not just chatting—you’re carefully guiding the reader's attention with intention.
+- **Relatable and impactful**: Aim to connect, but don't settle for the first idea that comes to mind. Go deeper to make it resonate. Look for opportunities to craft metaphors or analogies that evoke imagery or emotion, but keep it subtle.
+
+### **3. Authenticity with an Artful Touch**
+- **No sales pitches, but compelling**: Informative content, with a rhythm and cadence that feels intentional. You’re not just delivering facts—you’re doing so in a way that feels thoughtful and engaging.
+- **Real, but creative**: Inject creativity where possible. Whether it’s a turn of phrase or a clever way to reframe a point, show the craft of writing. Make readers feel like they’re getting something special, not just the bare minimum.
+
+### **4. Minimalism with Impact**
+- **Every word counts**: Still keep things minimal, but instead of just reducing the number of words, focus on choosing words that amplify the message. Think of Hemingway’s precision combined with a skilled copywriter’s ability to inject flair.
+- **Avoid hyperbole, but invite thought**: No need to exaggerate, but aim for language that leaves an impression. A sentence should do more than deliver a fact—it should provoke thought or a feeling.
+
+### **5. Consistency with Character**
+- **Unified voice with personality**: Maintain a consistent tone across content, but let each piece have a subtle flavor of its own. Adjust the intensity or the rhythm depending on the context, while keeping the same overall voice.
+- **Purposeful but artfully designed**: Always serve the purpose of the content, but with a touch of craftsmanship. Look for ways to elevate the writing, whether through carefully chosen words or a slightly unexpected structure that grabs attention.
+
+---
+
+### **Examples of Application**:
+- **Instead of saying**: “Our tool helps you get better results faster.”
+  **Say**: “Our tool sharpens your focus, speeding you toward better results.”
+
+- **Instead of saying**: “The process is simple and easy to follow.”
+  **Say**: “The process unfolds naturally, guiding you step by step.”
+
+- **Instead of saying**: “We streamline your workflow, so you have more time.”
+  **Say**: “We untangle your workflow, giving you time back where it belongs.”
+

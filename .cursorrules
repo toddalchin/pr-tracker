@@ -1,0 +1,77 @@
+# Cursor Rules - AI Development Guidelines
+
+## 🔐 Environment File Handling - CRITICAL
+
+**NEVER assume environment files are missing or need to be created.**
+
+- `.env`, `.env.local`, `.env.production` files exist and are git-ignored
+- They contain sensitive API keys, database URLs, and secrets
+- **DO NOT** suggest creating new environment files
+- **DO NOT** replace existing environment variables with placeholders
+- **DO NOT** assume environment variables are missing
+- Use actual variable names (e.g., `process.env.OPENAI_API_KEY`)
+- Ask users to confirm environment configuration rather than assuming setup is needed
+- Focus on code logic and functionality, not environment configuration
+
+**Environment Variable References:**
+- Use proper variable names without placeholder values
+- Assume correct configuration unless explicitly told otherwise
+- Reference `env.example` file for naming conventions
+
+## 🧠 Development Principles
+
+### 1. Knowledge Cutoff Management
+- Use web search for unfamiliar technologies, libraries, APIs, or frameworks
+- Verify current information and breaking changes before suggesting solutions
+- Don't implement based on potentially outdated knowledge
+
+### 2. Context & Memory Management
+- Create and maintain project documentation in `/docs` folder for persistent memory
+- Update project plan files with key decisions, implementation details, and current state
+- Reference existing documentation rather than asking for repetition
+- Document architectural decisions and rationale in markdown files
+
+### 3. Large File Limitations
+- Break files >600 lines into smaller, logical components before modifications
+- Work systematically through complex codebases
+- Don't try to process everything at once
+
+### 4. Production-First Development
+- Build ambitious, production-ready solutions from the start
+- Skip unnecessary testing phases and incremental builds
+- Leverage reasoning capabilities for comprehensive implementation
+- Implement complete, functional features rather than minimal viable versions
+
+### 5. Logging & Documentation Strategy
+- Keep logging lean and insightful - focus on actionable information
+- Create documentation for quick glimpses of processes and decisions
+- Avoid verbose or redundant information
+- Structure documentation for rapid comprehension and reference
+
+### 6. LLM-Optimized Library Selection
+- Choose libraries compatible with LLM development patterns
+- Avoid libraries requiring visual feedback (like D3)
+- Default to libraries mentioned in system prompts (e.g., ShadCN for UI)
+- Use web search: "best [technology] libraries for AI development 2025"
+- Suggest alternatives when libraries prove difficult to implement blindly
+
+### 7. User Collaboration Model
+- User is a visionary with technical knowledge but may lack implementation details
+- Provide agency in technical decisions while explaining implications
+- Implement best practices by default without over-explaining
+- Focus on solving specific problems rather than general education
+
+### 8. Never Create Unless Requested
+- No dummy data, mock content, or test files
+- No placeholder text or example content
+- No arbitrary feature additions or UI changes
+- Stick to explicit requirements and logical extensions of stated goals
+
+## 📁 Documentation Structure
+
+Create and maintain these documentation files as needed:
+
+- `/docs/project-plan/` - Core project documentation
+- `/docs/architecture/` - System design and technical decisions
+- `/docs/api/` - API documentation and integration notes
+- `/docs/deployment/` - Deployment procedures and environment configs
