@@ -4,7 +4,7 @@ import Header from '@/components/Header';
 import { useWorksheetData } from '@/hooks/useWorksheetData';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
-import { getPublicationInfo } from '@/lib/publicationData';
+import { getPublicationInfo, getReachMethodologyExplanation } from '@/lib/publicationData';
 import { 
   BarChart, 
   Bar, 
@@ -34,7 +34,8 @@ import {
   Award,
   Clock,
   Filter,
-  BarChart3
+  BarChart3,
+  Info
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -59,6 +60,7 @@ export default function CoveragePage() {
   const { data, loading, error, refetch } = useWorksheetData();
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedTimeframe, setSelectedTimeframe] = useState('all');
+  const [showMethodology, setShowMethodology] = useState(false);
 
   if (loading) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -229,7 +231,7 @@ export default function CoveragePage() {
 
   const getHighImpactCoverage = () => {
     return processedData
-      .filter(item => item.estimatedReach > 100000)
+      .filter(item => item.estimatedReach > 500000) // Adjusted for more realistic high-impact threshold
       .sort((a, b) => b.estimatedReach - a.estimatedReach);
   };
 
@@ -373,9 +375,18 @@ export default function CoveragePage() {
               <div className="bg-white p-6 rounded-lg shadow-sm border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Total Reach</p>
+                    <p className="text-sm font-medium text-gray-600 flex items-center">
+                      Total Reach
+                      <button
+                        onClick={() => setShowMethodology(!showMethodology)}
+                        className="ml-1 text-gray-400 hover:text-gray-600"
+                        title="Learn about reach calculations"
+                      >
+                        <Info className="w-3 h-3" />
+                      </button>
+                    </p>
                     <p className="text-2xl font-bold text-green-600">{formatReach(totalReach)}</p>
-                    <p className="text-xs text-gray-500">Estimated audience</p>
+                    <p className="text-xs text-gray-500">Estimated article reach</p>
                   </div>
                   <div className="p-3 bg-green-100 rounded-lg">
                     <Eye className="w-6 h-6 text-green-600" />
@@ -414,7 +425,7 @@ export default function CoveragePage() {
                   <div>
                     <p className="text-sm font-medium text-gray-600">High Impact</p>
                     <p className="text-2xl font-bold text-red-600">{highImpactCoverage.length}</p>
-                    <p className="text-xs text-gray-500">100K+ reach</p>
+                    <p className="text-xs text-gray-500">500K+ reach</p>
                   </div>
                   <div className="p-3 bg-red-100 rounded-lg">
                     <Star className="w-6 h-6 text-red-600" />
@@ -422,6 +433,24 @@ export default function CoveragePage() {
                 </div>
               </div>
             </div>
+
+            {/* Reach Methodology Explanation */}
+            {showMethodology && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+                <div className="flex items-start">
+                  <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">How We Calculate Reach</h4>
+                    <p className="text-sm text-blue-800 leading-relaxed">
+                      Reach estimates are based on industry-standard calculations where individual article reach 
+                      typically represents 1-5% of a publication's total monthly readership. These numbers reflect 
+                      realistic article visibility rather than total publication audience. For unknown publications, 
+                      we use conservative estimates based on publication type and characteristics.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Coverage Trend */}
             <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
@@ -563,11 +592,11 @@ export default function CoveragePage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           <div className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            outlet.avgReach > 100000 ? 'bg-green-100 text-green-800' :
-                            outlet.avgReach > 50000 ? 'bg-yellow-100 text-yellow-800' :
+                            outlet.avgReach > 500000 ? 'bg-green-100 text-green-800' :
+                            outlet.avgReach > 200000 ? 'bg-yellow-100 text-yellow-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
-                            {outlet.avgReach > 100000 ? 'High' : outlet.avgReach > 50000 ? 'Medium' : 'Standard'}
+                            {outlet.avgReach > 500000 ? 'High' : outlet.avgReach > 200000 ? 'Medium' : 'Standard'}
                           </div>
                         </td>
                       </tr>
@@ -716,7 +745,7 @@ export default function CoveragePage() {
               <div className="bg-white rounded-lg shadow-sm border">
                 <div className="p-6 border-b">
                   <h3 className="text-lg font-semibold text-gray-900">High Impact Coverage</h3>
-                  <p className="text-sm text-gray-600">Coverage with significant reach (100K+ estimated)</p>
+                  <p className="text-sm text-gray-600">Coverage with significant reach (500K+ estimated)</p>
                 </div>
                 <div className="p-6">
                   <div className="space-y-4">
