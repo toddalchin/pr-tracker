@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
+import { getPublicationInfo } from '@/lib/publicationData';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -13,7 +14,9 @@ import {
   FileText,
   ExternalLink,
   Clock,
-  Target
+  Target,
+  Eye,
+  BarChart3
 } from 'lucide-react';
 
 interface WorksheetData {
@@ -21,6 +24,22 @@ interface WorksheetData {
   sheets: Record<string, Record<string, unknown>[]>;
   sheetNames: string[];
   timestamp: string;
+}
+
+interface ProcessedCoverageItem {
+  Date: unknown;
+  Outlet: unknown;
+  'Article '?: unknown;
+  Article?: unknown;
+  Reporter: unknown;
+  'Client (if applicable)'?: unknown;
+  Client?: unknown;
+  Type?: unknown;
+  Link?: unknown;
+  Notes?: unknown;
+  title: string;
+  client: string;
+  reachData: ReturnType<typeof getPublicationInfo>;
 }
 
 interface RecentActivity {
@@ -34,13 +53,48 @@ interface RecentActivity {
 
 interface DashboardMetrics {
   totalCoverage: number;
+  totalReach: number;
   totalAwards: number;
   responseRate: number;
   upcomingDeadlines: number;
   coverageTrend: number;
+  reachTrend: number;
   awardsTrend: number;
+  qualityScore: number;
+  avgReach: number;
   recentActivity: RecentActivity[];
 }
+
+const cleanText = (text: string | undefined | null): string => {
+  return text?.toString().trim() || '';
+};
+
+const generateBetterTitle = (item: any): string => {
+  // Try multiple fallback strategies to avoid "Unnamed article"
+  let title = cleanText(String(item['Article '] || item.Article || ''));
+  
+  if (!title) {
+    const outlet = cleanText(String(item.Outlet || ''));
+    const date = item.Date ? new Date(String(item.Date)) : null;
+    const reporter = cleanText(String(item.Reporter || ''));
+    const client = cleanText(String(item['Client (if applicable)'] || item.Client || ''));
+    
+    // Create meaningful fallback titles
+    if (client && outlet) {
+      title = `${client} coverage in ${outlet}`;
+    } else if (outlet && date && !isNaN(date.getTime())) {
+      title = `${outlet} article (${date.toLocaleDateString()})`;
+    } else if (reporter && outlet) {
+      title = `${reporter}'s piece in ${outlet}`;
+    } else if (outlet) {
+      title = `${outlet} feature`;
+    } else {
+      title = `Media coverage`;
+    }
+  }
+  
+  return title;
+};
 
 export default function DashboardPage() {
   const [data, setData] = useState<WorksheetData | null>(null);
@@ -49,14 +103,47 @@ export default function DashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
 
   const calculateMetrics = useCallback((data: WorksheetData) => {
-    const mediaTracker = data.sheets['Media Tracker'] || [];
+    // Get coverage data from both sheets
+    const mediaTracker2025 = data.sheets['Media Tracker (2025)'] || [];
+    const mediaTracker2024 = data.sheets['Media Tracker'] || [];
+    const allMediaTracker = [...mediaTracker2025, ...mediaTracker2024];
+    
     const awards = data.sheets['Awards'] || [];
     const mediaRelations = data.sheets['Media Relations'] || [];
     const content = data.sheets['Content'] || [];
     
+    // Filter out invalid coverage items
+    const validCoverage = allMediaTracker.filter(item => 
+      item.Date && 
+      item.Outlet && 
+      item.Date.toString().trim() !== '' && 
+      item.Outlet.toString().trim() !== ''
+    );
+    
+    // Process coverage items with reach data
+    const processedCoverage: ProcessedCoverageItem[] = validCoverage.map(item => ({
+      ...item,
+      title: generateBetterTitle(item),
+      client: cleanText(String(item['Client (if applicable)'] || item.Client || '')) || 'General Coverage',
+      reachData: getPublicationInfo(String(item.Outlet || ''))
+    } as ProcessedCoverageItem));
+    
     // Basic counts
-    const totalCoverage = mediaTracker.length;
+    const totalCoverage = processedCoverage.length;
     const totalAwards = awards.length;
+    
+    // Calculate total reach and quality metrics
+    const totalReach = processedCoverage.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
+    const avgReach = totalCoverage > 0 ? Math.round(totalReach / totalCoverage) : 0;
+    
+    // Calculate quality score (tier-weighted)
+    const tier1Count = processedCoverage.filter(item => item.reachData.tier === 'tier1').length;
+    const tier2Count = processedCoverage.filter(item => item.reachData.tier === 'tier2').length;
+    const tier3Count = processedCoverage.filter(item => item.reachData.tier === 'tier3').length;
+    
+    const qualityScore = totalCoverage > 0 
+      ? Math.round(((tier1Count * 3) + (tier2Count * 2) + (tier3Count * 1)) / (totalCoverage * 3) * 100)
+      : 0;
     
     // Calculate response rate
     const outreachWithResponse = mediaRelations.filter(item => {
@@ -80,19 +167,26 @@ export default function DashboardPage() {
     const now30DaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const now60DaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
     
-    const recentCoverage = mediaTracker.filter(item => {
+    const recentCoverage = processedCoverage.filter(item => {
       const date = new Date(String(item.Date || ''));
       return !isNaN(date.getTime()) && date >= now30DaysAgo;
-    }).length;
+    });
     
-    const previousCoverage = mediaTracker.filter(item => {
+    const previousCoverage = processedCoverage.filter(item => {
       const date = new Date(String(item.Date || ''));
       return !isNaN(date.getTime()) && date >= now60DaysAgo && date < now30DaysAgo;
-    }).length;
+    });
     
-    const coverageTrend = previousCoverage > 0 ? 
-      Math.round(((recentCoverage - previousCoverage) / previousCoverage) * 100) : 0;
+    const coverageTrend = previousCoverage.length > 0 ? 
+      Math.round(((recentCoverage.length - previousCoverage.length) / previousCoverage.length) * 100) : 0;
 
+    // Calculate reach trend
+    const recentReach = recentCoverage.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
+    const previousReach = previousCoverage.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
+    const reachTrend = previousReach > 0 ? 
+      Math.round(((recentReach - previousReach) / previousReach) * 100) : 0;
+
+    // Awards trend
     const recentAwards = awards.filter(item => {
       const date = new Date(String(item['Date Announced'] || item['Date / Deadline'] || ''));
       return !isNaN(date.getTime()) && date >= now30DaysAgo;
@@ -106,17 +200,17 @@ export default function DashboardPage() {
     const awardsTrend = previousAwards > 0 ? 
       Math.round(((recentAwards - previousAwards) / previousAwards) * 100) : 0;
 
-    // Get recent activity (chronological - last items regardless of date)
+    // Get recent activity
     const recentActivity: RecentActivity[] = [];
 
-    // Recent coverage
-    mediaTracker.forEach(item => {
+    // Recent coverage with better titles
+    processedCoverage.forEach(item => {
       const date = new Date(String(item.Date || ''));
-      if (!isNaN(date.getTime()) || item.Title) { // Include items with dates or titles
+      if (!isNaN(date.getTime()) && date >= now30DaysAgo) {
         recentActivity.push({
           type: 'coverage',
-          title: String(item.Title || 'Unnamed Article'),
-          date: !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString(),
+          title: item.title,
+          date: date.toISOString(),
           outlet: String(item.Outlet || ''),
           link: String(item.Link || '')
         });
@@ -126,11 +220,11 @@ export default function DashboardPage() {
     // Recent awards
     awards.forEach(item => {
       const date = new Date(String(item['Date Announced'] || item['Date / Deadline'] || ''));
-      if (!isNaN(date.getTime()) || item.Award) { // Include items with dates or award names
+      if (!isNaN(date.getTime()) && date >= now30DaysAgo) {
         recentActivity.push({
           type: 'award',
-          title: String(item.Award || 'Award Submission'),
-          date: !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString(),
+          title: String(item.Award || 'Award Entry'),
+          date: date.toISOString(),
           status: String(item.Status || '')
         });
       }
@@ -139,12 +233,21 @@ export default function DashboardPage() {
     // Recent outreach
     mediaRelations.forEach(item => {
       const date = new Date(String(item['Date / Deadline'] || ''));
-      if (!isNaN(date.getTime()) || item.Contact) { // Include items with dates or contact names
+      if (!isNaN(date.getTime()) && date >= now30DaysAgo) {
+        const contactName = cleanText(String(item.Contact || ''));
+        const outlet = cleanText(String(item.Outlet || ''));
+        let title = contactName || 'Media Outreach';
+        if (contactName && outlet) {
+          title = `${contactName} (${outlet})`;
+        } else if (outlet) {
+          title = `Contact at ${outlet}`;
+        }
+        
         recentActivity.push({
           type: 'outreach',
-          title: String(item.Contact || 'Media Contact'),
-          date: !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString(),
-          outlet: String(item.Outlet || ''),
+          title: title,
+          date: date.toISOString(),
+          outlet: outlet,
           status: String(item.Status || '')
         });
       }
@@ -155,12 +258,16 @@ export default function DashboardPage() {
 
     setMetrics({
       totalCoverage,
+      totalReach,
       totalAwards,
       responseRate,
       upcomingDeadlines,
       coverageTrend,
+      reachTrend,
       awardsTrend,
-      recentActivity: recentActivity.slice(0, 8) // Show top 8 recent activities
+      qualityScore,
+      avgReach,
+      recentActivity: recentActivity.slice(0, 8)
     });
   }, []);
 
@@ -200,6 +307,16 @@ export default function DashboardPage() {
     return date.toLocaleDateString();
   };
 
+  const formatNumber = (num: number) => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}M`;
+    }
+    if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}K`;
+    }
+    return num.toLocaleString();
+  };
+
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'coverage': return <FileText className="w-4 h-4" />;
@@ -227,26 +344,38 @@ export default function DashboardPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        {/* Header Section */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            PR Dashboard Overview
-          </h1>
-          <p className="text-gray-600">
-            Your latest PR performance, media coverage, and campaign insights
-          </p>
-        </div>
-
         {/* Key Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Coverage</p>
-                <p className="text-2xl font-bold text-gray-900">{metrics.totalCoverage}</p>
+                <p className="text-sm font-medium text-gray-600">Total Footprint</p>
+                <p className="text-2xl font-bold text-gray-900">{formatNumber(metrics.totalReach)}</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-lg">
-                <FileText className="w-6 h-6 text-blue-600" />
+                <Eye className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-center">
+              {metrics.reachTrend >= 0 ? (
+                <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
+              ) : (
+                <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
+              )}
+              <span className={`text-sm ${metrics.reachTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {Math.abs(metrics.reachTrend)}% vs last month
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Articles Published</p>
+                <p className="text-2xl font-bold text-gray-900">{metrics.totalCoverage}</p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-lg">
+                <FileText className="w-6 h-6 text-green-600" />
               </div>
             </div>
             <div className="mt-2 flex items-center">
@@ -264,11 +393,44 @@ export default function DashboardPage() {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-sm font-medium text-gray-600">Quality Score</p>
+                <p className="text-2xl font-bold text-gray-900">{metrics.qualityScore}%</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <BarChart3 className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-sm text-gray-500">Tier-weighted score</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Avg Reach</p>
+                <p className="text-2xl font-bold text-gray-900">{formatNumber(metrics.avgReach)}</p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <Target className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-sm text-gray-500">Per article</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Secondary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Awards Tracked</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.totalAwards}</p>
               </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Award className="w-6 h-6 text-purple-600" />
+              <div className="p-3 bg-yellow-100 rounded-lg">
+                <Award className="w-6 h-6 text-yellow-600" />
               </div>
             </div>
             <div className="mt-2 flex items-center">
@@ -289,8 +451,8 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-gray-600">Response Rate</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.responseRate}%</p>
               </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Target className="w-6 h-6 text-green-600" />
+              <div className="p-3 bg-indigo-100 rounded-lg">
+                <Users className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
             <div className="mt-2">
@@ -304,8 +466,8 @@ export default function DashboardPage() {
                 <p className="text-sm font-medium text-gray-600">Upcoming Deadlines</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.upcomingDeadlines}</p>
               </div>
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Calendar className="w-6 h-6 text-orange-600" />
+              <div className="p-3 bg-red-100 rounded-lg">
+                <Calendar className="w-6 h-6 text-red-600" />
               </div>
             </div>
             <div className="mt-2">
@@ -319,7 +481,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b">
               <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-              <p className="text-sm text-gray-600">Latest updates across all activities</p>
+              <p className="text-sm text-gray-600">Latest updates from the last 30 days</p>
             </div>
             <div className="p-6">
               {metrics.recentActivity.length > 0 ? (
@@ -334,7 +496,7 @@ export default function DashboardPage() {
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {activity.title}
                           </p>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
                             {formatDate(activity.date)}
                           </span>
                         </div>
@@ -371,11 +533,26 @@ export default function DashboardPage() {
 
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">Performance Overview</h2>
-              <p className="text-sm text-gray-600">Key metrics and trends</p>
+              <h2 className="text-lg font-semibold text-gray-900">Performance Insights</h2>
+              <p className="text-sm text-gray-600">Key performance indicators</p>
             </div>
             <div className="p-6">
               <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-700">Reach Growth</span>
+                    <span className={`text-sm font-medium ${metrics.reachTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {metrics.reachTrend >= 0 ? '+' : ''}{metrics.reachTrend}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full ${metrics.reachTrend >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                      style={{ width: `${Math.min(Math.abs(metrics.reachTrend), 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-gray-700">Coverage Growth</span>
@@ -385,7 +562,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
-                      className={`h-2 rounded-full ${metrics.coverageTrend >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                      className={`h-2 rounded-full ${metrics.coverageTrend >= 0 ? 'bg-blue-500' : 'bg-red-500'}`}
                       style={{ width: `${Math.min(Math.abs(metrics.coverageTrend), 100)}%` }}
                     ></div>
                   </div>
@@ -393,15 +570,13 @@ export default function DashboardPage() {
 
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">Awards Activity</span>
-                    <span className={`text-sm font-medium ${metrics.awardsTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {metrics.awardsTrend >= 0 ? '+' : ''}{metrics.awardsTrend}%
-                    </span>
+                    <span className="text-sm font-medium text-gray-700">Quality Score</span>
+                    <span className="text-sm font-medium text-purple-600">{metrics.qualityScore}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
-                      className={`h-2 rounded-full ${metrics.awardsTrend >= 0 ? 'bg-purple-500' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min(Math.abs(metrics.awardsTrend), 100)}%` }}
+                      className="h-2 rounded-full bg-purple-500"
+                      style={{ width: `${metrics.qualityScore}%` }}
                     ></div>
                   </div>
                 </div>
@@ -409,11 +584,11 @@ export default function DashboardPage() {
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-gray-700">Response Rate</span>
-                    <span className="text-sm font-medium text-blue-600">{metrics.responseRate}%</span>
+                    <span className="text-sm font-medium text-indigo-600">{metrics.responseRate}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div 
-                      className="h-2 rounded-full bg-blue-500"
+                      className="h-2 rounded-full bg-indigo-500"
                       style={{ width: `${metrics.responseRate}%` }}
                     ></div>
                   </div>
