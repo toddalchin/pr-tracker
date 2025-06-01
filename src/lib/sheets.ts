@@ -162,11 +162,26 @@ export async function getGoogleSheetsData() {
     };
   } catch (error) {
     console.error('Error in getGoogleSheetsData:', error);
+    
+    // Check if this is a quota error
+    let errorMessage = 'Unknown error';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      // Check for various quota error indicators
+      if (errorMessage.includes('Quota exceeded') || 
+          errorMessage.includes('rateLimitExceeded') || 
+          errorMessage.includes('Too Many Requests') ||
+          (error as any).status === 429 ||
+          (error as any).code === 429) {
+        errorMessage = 'Quota exceeded for Google Sheets API. Please try again later.';
+      }
+    }
+    
     return {
       success: false,
       sheets: {},
       sheetNames: [],
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
       timestamp: new Date().toISOString()
     };
   }
