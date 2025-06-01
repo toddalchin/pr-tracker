@@ -1,808 +1,821 @@
 'use client';
 
+import React, { useState, useEffect, useMemo } from 'react';
 import Header from '@/components/Header';
-import { useWorksheetData } from '@/hooks/useWorksheetData';
-import LoadingState from '@/components/LoadingState';
-import ErrorState from '@/components/ErrorState';
-import { getPublicationInfo, getReachMethodologyExplanation } from '@/lib/publicationData';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell,
-  AreaChart,
-  Area,
-  LineChart,
-  Line
-} from 'recharts';
-import { 
-  Newspaper, 
-  TrendingUp, 
-  Calendar, 
-  Eye, 
-  Target,
-  Star,
-  ExternalLink,
-  User,
-  Building,
-  Award,
-  Clock,
-  Filter,
-  BarChart3,
-  Info
-} from 'lucide-react';
-import { useState } from 'react';
+import { getPublicationInfo, getReachMethodologyExplanation, getDataQualityStats } from '@/lib/publicationData';
 
 interface CoverageItem {
-  Date?: string;
-  Outlet?: string;
-  Title?: string;
+  Date: string;
+  Outlet: string;
+  'Article '?: string;
   Article?: string;
+  Reporter: string;
+  'Client (if applicable)'?: string;
+  Client?: string;
   Type?: string;
-  Status?: string;
   Link?: string;
   Notes?: string;
-  Reporter?: string;
-  Client?: string;
-  'Client (if applicable)'?: string;
-  [key: string]: unknown;
 }
 
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+interface ProcessedCoverageItem extends CoverageItem {
+  title: string;
+  client: string;
+  reachData: ReturnType<typeof getPublicationInfo>;
+}
 
-export default function CoveragePage() {
-  const { data, loading, error, refetch } = useWorksheetData();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [selectedTimeframe, setSelectedTimeframe] = useState('all');
-  const [showMethodology, setShowMethodology] = useState(false);
+interface FilterState {
+  year: string;
+  quarter: string;
+  tier: string;
+  client: string;
+}
 
-  if (loading) return <LoadingState />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
-  if (!data) return <ErrorState error="No data available" onRetry={refetch} />;
+// Helper function to clean N/A data
+const cleanText = (text: string | undefined | null): string => {
+  if (!text) return '';
+  return text.toString().replace(/^N\/A\s+/gi, '').replace(/^N\/A$/gi, '').trim();
+};
 
-  // Combine both Media Tracker sheets
-  const mediaTracker2024 = (data.sheets['Media Tracker'] || []) as CoverageItem[];
-  const mediaTracker2025 = (data.sheets['Media Tracker (2025)'] || []) as CoverageItem[];
-  
-  // Combine and deduplicate coverage items
-  const allCoverageItems = [...mediaTracker2024, ...mediaTracker2025].map((item, index) => ({
-    ...item,
-    id: index,
-    year: getYearFromDate(item.Date),
-    source: mediaTracker2025.includes(item as any) ? '2025 Tracker' : '2024 Tracker'
-  }));
-
-  function getYearFromDate(dateStr?: string): number {
-    if (!dateStr) return new Date().getFullYear();
-    const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
-  }
-
-  // Filter by timeframe
-  const getFilteredItems = () => {
-    if (selectedTimeframe === 'all') return allCoverageItems;
-    
-    const now = new Date();
-    const cutoffDate = new Date();
-    
-    switch (selectedTimeframe) {
-      case '30d':
-        cutoffDate.setDate(now.getDate() - 30);
-        break;
-      case '90d':
-        cutoffDate.setDate(now.getDate() - 90);
-        break;
-      case '2025':
-        return allCoverageItems.filter(item => item.year === 2025);
-      case '2024':
-        return allCoverageItems.filter(item => item.year === 2024);
-      default:
-        return allCoverageItems;
-    }
-    
-    return allCoverageItems.filter(item => {
-      const itemDate = new Date(item.Date || '');
-      return !isNaN(itemDate.getTime()) && itemDate >= cutoffDate;
-    });
-  };
-
-  const filteredItems = getFilteredItems();
-
-  const processedData = filteredItems.map((item) => {
-    const outlet = String(item.Outlet || 'Unknown');
-    const publicationInfo = getPublicationInfo(outlet);
-    
-    return {
-      ...item,
-      estimatedReach: publicationInfo?.estimatedReach || 0,
-      tier: publicationInfo?.tier || 'unknown',
-      title: item.Title || item.Article || 'Untitled',
-      client: item.Client || item['Client (if applicable)'] || 'N/A',
-      reporter: item.Reporter || 'Unknown'
-    };
+// Helper function to format dates nicely
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
   });
+};
 
-  // Enhanced Analytics Functions
-  const getOutletBreakdown = () => {
-    const outletCounts: Record<string, { count: number; reach: number }> = {};
-    processedData.forEach(item => {
-      const outlet = String(item.Outlet || 'Unknown');
-      if (!outletCounts[outlet]) {
-        outletCounts[outlet] = { count: 0, reach: 0 };
-      }
-      outletCounts[outlet].count += 1;
-      outletCounts[outlet].reach += item.estimatedReach;
-    });
-    
-    return Object.entries(outletCounts)
-      .map(([name, data]) => ({ 
-        name, 
-        value: data.count, 
-        reach: data.reach,
-        avgReach: data.reach / data.count 
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-  };
-
-  const getTypeBreakdown = () => {
-    const typeCounts: Record<string, number> = {};
-    processedData.forEach(item => {
-      const type = String(item.Type || 'Unknown');
-      typeCounts[type] = (typeCounts[type] || 0) + 1;
-    });
-    
-    return Object.entries(typeCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  };
-
-  const getClientBreakdown = () => {
-    const clientCounts: Record<string, number> = {};
-    processedData.forEach(item => {
-      const client = item.client === 'N/A' ? 'Thought Leadership' : item.client;
-      clientCounts[client] = (clientCounts[client] || 0) + 1;
-    });
-    
-    return Object.entries(clientCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-  };
-
-  const getReporterBreakdown = () => {
-    const reporterCounts: Record<string, { count: number; outlets: Set<string> }> = {};
-    processedData.forEach(item => {
-      const reporter = item.reporter;
-      const outlet = String(item.Outlet || 'Unknown');
-      
-      if (!reporterCounts[reporter]) {
-        reporterCounts[reporter] = { count: 0, outlets: new Set() };
-      }
-      reporterCounts[reporter].count += 1;
-      reporterCounts[reporter].outlets.add(outlet);
-    });
-    
-    return Object.entries(reporterCounts)
-      .map(([name, data]) => ({ 
-        name, 
-        count: data.count, 
-        outlets: data.outlets.size,
-        outletList: Array.from(data.outlets)
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  };
-
-  const getMonthlyTrend = () => {
-    const monthCounts: Record<string, number> = {};
-    processedData.forEach(item => {
-      const dateStr = String(item.Date || '');
-      const date = new Date(dateStr);
-      if (!isNaN(date.getTime())) {
-        const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
-      }
-    });
-    
-    const sortedMonths = Object.entries(monthCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime());
-    
-    return sortedMonths.slice(-12); // Last 12 months
-  };
-
-  const getRecentCoverage = () => {
-    return processedData
-      .filter(item => item.Date)
-      .sort((a, b) => new Date(String(b.Date)).getTime() - new Date(String(a.Date)).getTime())
-      .slice(0, 8);
-  };
-
-  const getTotalReach = () => {
-    return processedData.reduce((total, item) => total + item.estimatedReach, 0);
-  };
-
-  const getHighImpactCoverage = () => {
-    return processedData
-      .filter(item => item.estimatedReach > 500000) // Adjusted for more realistic high-impact threshold
-      .sort((a, b) => b.estimatedReach - a.estimatedReach);
-  };
-
-  const getYearOverYearComparison = () => {
-    const currentYear = new Date().getFullYear();
-    const currentYearData = allCoverageItems.filter(item => item.year === currentYear);
-    const previousYearData = allCoverageItems.filter(item => item.year === currentYear - 1);
-    
-    return {
-      current: currentYearData.length,
-      previous: previousYearData.length,
-      change: currentYearData.length - previousYearData.length,
-      percentChange: previousYearData.length > 0 
-        ? ((currentYearData.length - previousYearData.length) / previousYearData.length * 100)
-        : 0
-    };
-  };
-
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'Unknown date';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
-    });
-  };
-
-  const formatReach = (reach: number) => {
-    if (reach >= 1000000) return `${(reach / 1000000).toFixed(1)}M`;
-    if (reach >= 1000) return `${(reach / 1000).toFixed(0)}K`;
-    return reach.toString();
-  };
-
-  // Calculate all analytics
-  const outletData = getOutletBreakdown();
-  const typeData = getTypeBreakdown();
-  const clientData = getClientBreakdown();
-  const reporterData = getReporterBreakdown();
-  const trendData = getMonthlyTrend();
-  const recentCoverage = getRecentCoverage();
-  const totalReach = getTotalReach();
-  const highImpactCoverage = getHighImpactCoverage();
-  const uniqueOutlets = new Set(processedData.map(item => item.Outlet)).size;
-  const uniqueReporters = new Set(processedData.map(item => item.reporter)).size;
-  const yearComparison = getYearOverYearComparison();
+// Line Chart Component
+const LineChart = ({ data, color, label }: { 
+  data: Array<{key: string, label: string, value: number}>, 
+  color: string, 
+  label: string 
+}) => {
+  const maxValue = Math.max(...data.map(d => d.value));
+  const points = data.map((item, index) => {
+    const x = (index / (data.length - 1)) * 100;
+    const y = 100 - (item.value / maxValue) * 80; // 80% of height for chart area
+    return `${x},${y}`;
+  }).join(' ');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-48">
+      <svg width="100%" height="100%" viewBox="0 0 100 100" className="overflow-visible">
+        {/* Grid lines */}
+        {[20, 40, 60, 80].map(y => (
+          <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#f3f4f6" strokeWidth="0.2"/>
+        ))}
+        
+        {/* Data line */}
+        <polyline
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          points={points}
+          vectorEffect="non-scaling-stroke"
+        />
+        
+        {/* Data points */}
+        {data.map((item, index) => {
+          const x = (index / (data.length - 1)) * 100;
+          const y = 100 - (item.value / maxValue) * 80;
+          return (
+            <g key={index}>
+              <circle
+                cx={x}
+                cy={y}
+                r="1.5"
+                fill={color}
+                className="hover:r-3 transition-all cursor-pointer"
+                vectorEffect="non-scaling-stroke"
+              />
+              <title>{item.label}: {item.value.toLocaleString()}</title>
+            </g>
+          );
+        })}
+        
+        {/* X-axis labels */}
+        {data.map((item, index) => {
+          const x = (index / (data.length - 1)) * 100;
+          return (
+            <text
+              key={index}
+              x={x}
+              y="95"
+              textAnchor="middle"
+              fontSize="3"
+              fill="#6b7280"
+              className="font-medium"
+            >
+              {item.label.split(' ')[0]}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
+
+export default function CoveragePage() {
+  const [mounted, setMounted] = useState(false);
+  const [allCoverageItems, setAllCoverageItems] = useState<CoverageItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [cacheInfo, setCacheInfo] = useState<{
+    cached: boolean;
+    stale: boolean;
+    quotaExceeded: boolean;
+    message?: string;
+    cacheAge?: number;
+  } | null>(null);
+  const [filters, setFilters] = useState<FilterState>({
+    year: 'all',
+    quarter: 'all',
+    tier: 'all',
+    client: ''
+  });
+  const [activeTab, setActiveTab] = useState<'overview' | 'details' | 'methodology'>('overview');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setCacheInfo(null);
+        
+        const response = await fetch('/api/sheets/all');
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch data');
+        }
+        
+        // Handle cache information
+        if (data.cached || data.quotaExceeded) {
+          setCacheInfo({
+            cached: data.cached || false,
+            stale: data.stale || false,
+            quotaExceeded: data.quotaExceeded || false,
+            message: data.message,
+            cacheAge: data.cacheAge
+          });
+        }
+
+        // Extract coverage data from both sheets
+        const mediaTracker2025 = data.sheets['Media Tracker (2025)'] || [];
+        const mediaTracker2024 = data.sheets['Media Tracker'] || [];
+        
+        console.log('Raw data - Media Tracker (2025):', mediaTracker2025.length, 'items');
+        console.log('Raw data - Media Tracker:', mediaTracker2024.length, 'items');
+        
+        const allItems = [...mediaTracker2025, ...mediaTracker2024];
+        
+        // Filter out items without dates or outlets
+        const filteredItems = allItems.filter(item => 
+          item.Date && 
+          item.Outlet && 
+          item.Date.toString().trim() !== '' && 
+          item.Outlet.toString().trim() !== ''
+        );
+        
+        console.log('Processing data, filteredItems length:', filteredItems.length);
+        
+        setAllCoverageItems(filteredItems);
+        
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [mounted]);
+
+  const processedData: ProcessedCoverageItem[] = useMemo(() => {
+    if (!allCoverageItems.length) return [];
+    
+    return allCoverageItems.map(item => ({
+      ...item,
+      title: cleanText(item['Article '] || item.Article) || 'Untitled',
+      client: cleanText(item['Client (if applicable)'] || item.Client) || 'No Client',
+      reachData: getPublicationInfo(item.Outlet)
+    }));
+  }, [allCoverageItems]);
+
+  const filteredData = useMemo(() => {
+    let filtered = processedData;
+
+    // Year filter
+    if (filters.year !== 'all') {
+      filtered = filtered.filter(item => {
+        const itemYear = new Date(item.Date).getFullYear().toString();
+        return itemYear === filters.year;
+      });
+    }
+
+    // Quarter filter
+    if (filters.quarter !== 'all') {
+      filtered = filtered.filter(item => {
+        const itemDate = new Date(item.Date);
+        const month = itemDate.getMonth() + 1;
+        const quarter = Math.ceil(month / 3);
+        return quarter.toString() === filters.quarter.replace('Q', '');
+      });
+    }
+
+    // Tier filter
+    if (filters.tier !== 'all') {
+      filtered = filtered.filter(item => {
+        const tier = item.reachData.tier;
+        if (filters.tier === 'unknown') {
+          return !tier;
+        }
+        return tier === filters.tier;
+      });
+    }
+
+    // Client filter
+    if (filters.client) {
+      filtered = filtered.filter(item =>
+        item.client.toLowerCase().includes(filters.client.toLowerCase())
+      );
+    }
+
+    return filtered;
+  }, [processedData, filters]);
+
+  // Sort filtered data by date (most recent first)
+  const sortedFilteredData = useMemo(() => {
+    return [...filteredData].sort((a, b) => new Date(b.Date).getTime() - new Date(a.Date).getTime());
+  }, [filteredData]);
+
+  const analytics = useMemo(() => {
+    const totalItems = filteredData.length;
+    const totalReach = filteredData.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
+    const avgReach = totalItems > 0 ? Math.round(totalReach / totalItems) : 0;
+    
+    const tierDistribution = filteredData.reduce((acc, item) => {
+      const tier = item.reachData.tier;
+      const tierKey = tier || 'unknown';
+      acc[tierKey] = (acc[tierKey] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const clientDistribution = filteredData.reduce((acc, item) => {
+      const client = item.client || 'No Client';
+      acc[client] = (acc[client] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Monthly trends for line charts
+    const monthlyData = filteredData.reduce((acc, item) => {
+      const date = new Date(item.Date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      
+      if (!acc[monthKey]) {
+        acc[monthKey] = {
+          key: monthKey,
+          label: monthLabel,
+          count: 0,
+          reach: 0,
+          tier1Count: 0,
+          tier2Count: 0,
+          tier3Count: 0
+        };
+      }
+      
+      acc[monthKey].count++;
+      acc[monthKey].reach += (item.reachData.estimatedReach || 0);
+      
+      if (item.reachData.tier === 'tier1') acc[monthKey].tier1Count++;
+      else if (item.reachData.tier === 'tier2') acc[monthKey].tier2Count++;
+      else if (item.reachData.tier === 'tier3') acc[monthKey].tier3Count++;
+      
+      return acc;
+    }, {} as Record<string, any>);
+    
+    const monthlyTrends = Object.values(monthlyData)
+      .sort((a: any, b: any) => a.key.localeCompare(b.key))
+      .map((month: any) => ({
+        ...month,
+        qualityScore: month.count > 0 
+          ? Math.round(((month.tier1Count * 3) + (month.tier2Count * 2) + (month.tier3Count * 1)) / (month.count * 3) * 100)
+          : 0
+      }));
+    
+    return {
+      totalItems,
+      totalReach,
+      avgReach,
+      tierDistribution,
+      clientDistribution,
+      monthlyTrends
+    };
+  }, [filteredData]);
+
+  const qualityScore = useMemo(() => {
+    const total = analytics.totalItems;
+    if (total === 0) return 0;
+    
+    const tier1Count = analytics.tierDistribution.tier1 || 0;
+    const tier2Count = analytics.tierDistribution.tier2 || 0;
+    const tier3Count = analytics.tierDistribution.tier3 || 0;
+    
+    const weightedScore = (tier1Count * 3) + (tier2Count * 2) + (tier3Count * 1);
+    const maxPossibleScore = total * 3;
+    
+    return Math.round((weightedScore / maxPossibleScore) * 100);
+  }, [analytics]);
+
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    processedData.forEach(item => {
+      years.add(new Date(item.Date).getFullYear().toString());
+    });
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [processedData]);
+
+  const resetFilters = () => {
+    setFilters({
+      year: 'all',
+      quarter: 'all',
+      tier: 'all',
+      client: ''
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <div className="text-red-600 text-4xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold text-red-800 mb-2">Error Loading Data</h2>
+            <p className="text-red-700">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            📰 Media Coverage Intelligence
-          </h1>
-          <p className="text-gray-600">
-            Comprehensive analytics across {mediaTracker2024.length + mediaTracker2025.length} media mentions from 2024-2025
-          </p>
-        </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Cache Warning */}
+        {cacheInfo && (
+          <div className={`mb-6 p-4 rounded-lg border ${
+            cacheInfo.quotaExceeded 
+              ? 'bg-red-50 border-red-200 text-red-800' 
+              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">
+                {cacheInfo.quotaExceeded ? '⚠️ Using Cached Data (Quota Exceeded)' : '📋 Using Cached Data'}
+              </span>
+              {cacheInfo.message && <span>- {cacheInfo.message}</span>}
+              {cacheInfo.cacheAge && <span>(Cached {Math.round(cacheInfo.cacheAge / 60)} minutes ago)</span>}
+            </div>
+          </div>
+        )}
 
-        {/* Timeframe Filter */}
-        <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
-          <div className="flex items-center space-x-4">
-            <Filter className="w-5 h-5 text-gray-500" />
-            <span className="text-sm font-medium text-gray-700">Timeframe:</span>
-            <div className="flex space-x-2">
-              {[
-                { key: 'all', label: 'All Time' },
-                { key: '30d', label: 'Last 30 days' },
-                { key: '90d', label: 'Last 90 days' },
-                { key: '2025', label: '2025' },
-                { key: '2024', label: '2024' }
-              ].map(({ key, label }) => (
+        {/* Filters */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Filter Coverage</h2>
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Year Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Year:</span>
+              <div className="flex gap-1">
                 <button
-                  key={key}
-                  onClick={() => setSelectedTimeframe(key)}
-                  className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                    selectedTimeframe === key
-                      ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  onClick={() => setFilters(prev => ({ ...prev, year: 'all' }))}
+                  className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                    filters.year === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  {label}
+                  All
                 </button>
-              ))}
+                {availableYears.map(year => (
+                  <button
+                    key={year}
+                    onClick={() => setFilters(prev => ({ ...prev, year }))}
+                    className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                      filters.year === year
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Quarter Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Quarter:</span>
+              <div className="flex gap-1">
+                {['all', 'Q1', 'Q2', 'Q3', 'Q4'].map(quarter => (
+                  <button
+                    key={quarter}
+                    onClick={() => setFilters(prev => ({ ...prev, quarter }))}
+                    className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                      filters.quarter === quarter
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {quarter === 'all' ? 'All' : quarter}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tier Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Tier:</span>
+              <div className="flex gap-1">
+                {['all', 'tier1', 'tier2', 'tier3', 'unknown'].map(tier => (
+                  <button
+                    key={tier}
+                    onClick={() => setFilters(prev => ({ ...prev, tier }))}
+                    className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                      filters.tier === tier
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {tier === 'all' ? 'All' : tier === 'unknown' ? 'Unknown' : tier.replace('tier', 'Tier ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Client Search */}
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <span className="text-sm font-medium text-gray-700">Client:</span>
+              <input
+                type="text"
+                placeholder="Search clients..."
+                value={filters.client}
+                onChange={(e) => setFilters(prev => ({ ...prev, client: e.target.value }))}
+                className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Reset Button */}
+            <button
+              onClick={resetFilters}
+              className="px-4 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
+            >
+              Reset
+            </button>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow-sm border mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex">
-              {[
-                { key: 'overview', label: 'Overview', icon: BarChart3 },
-                { key: 'outlets', label: 'Outlets & Reach', icon: Building },
-                { key: 'reporters', label: 'Reporter Network', icon: User },
-                { key: 'content', label: 'Content Analysis', icon: Newspaper }
-              ].map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  onClick={() => setActiveTab(key)}
-                  className={`flex items-center px-6 py-3 text-sm font-medium border-b-2 ${
-                    activeTab === key
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Icon className="w-4 h-4 mr-2" />
-                  {label}
-                </button>
-              ))}
-            </nav>
-          </div>
+        <div className="flex border-b mb-6">
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'details', label: 'Coverage Details' },
+            { key: 'methodology', label: 'Methodology' }
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Overview Tab */}
+        {/* Tab Content */}
         {activeTab === 'overview' && (
-          <>
+          <div className="space-y-6">
             {/* Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Coverage</p>
-                    <p className="text-2xl font-bold text-blue-600">{filteredItems.length}</p>
-                    {yearComparison.change !== 0 && (
-                      <p className={`text-xs ${yearComparison.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {yearComparison.change > 0 ? '+' : ''}{yearComparison.change} vs last year
-                      </p>
-                    )}
-                  </div>
-                  <div className="p-3 bg-blue-100 rounded-lg">
-                    <Newspaper className="w-6 h-6 text-blue-600" />
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Footprint</h3>
+                <p className="text-3xl font-bold text-blue-600">{analytics.totalItems}</p>
+                <p className="text-sm text-gray-600">Articles</p>
               </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 flex items-center">
-                      Total Reach
-                      <button
-                        onClick={() => setShowMethodology(!showMethodology)}
-                        className="ml-1 text-gray-400 hover:text-gray-600"
-                        title="Learn about reach calculations"
-                      >
-                        <Info className="w-3 h-3" />
-                      </button>
-                    </p>
-                    <p className="text-2xl font-bold text-green-600">{formatReach(totalReach)}</p>
-                    <p className="text-xs text-gray-500">Estimated article reach</p>
-                  </div>
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <Eye className="w-6 h-6 text-green-600" />
-                  </div>
-                </div>
+              
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Total Reach</h3>
+                <p className="text-3xl font-bold text-green-600">{analytics.totalReach.toLocaleString()}</p>
+                <p className="text-sm text-gray-600">Estimated readers <span className="text-xs text-amber-600">(includes duplication)</span></p>
               </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Unique Outlets</p>
-                    <p className="text-2xl font-bold text-purple-600">{uniqueOutlets}</p>
-                    <p className="text-xs text-gray-500">Publications reached</p>
-                  </div>
-                  <div className="p-3 bg-purple-100 rounded-lg">
-                    <Target className="w-6 h-6 text-purple-600" />
-                  </div>
-                </div>
+              
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Average Reach</h3>
+                <p className="text-3xl font-bold text-purple-600">{analytics.avgReach.toLocaleString()}</p>
+                <p className="text-sm text-gray-600">Per article <span className="text-xs text-amber-600">(3% of publication readership)</span></p>
               </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Reporter Network</p>
-                    <p className="text-2xl font-bold text-orange-600">{uniqueReporters}</p>
-                    <p className="text-xs text-gray-500">Media contacts</p>
-                  </div>
-                  <div className="p-3 bg-orange-100 rounded-lg">
-                    <User className="w-6 h-6 text-orange-600" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">High Impact</p>
-                    <p className="text-2xl font-bold text-red-600">{highImpactCoverage.length}</p>
-                    <p className="text-xs text-gray-500">500K+ reach</p>
-                  </div>
-                  <div className="p-3 bg-red-100 rounded-lg">
-                    <Star className="w-6 h-6 text-red-600" />
-                  </div>
-                </div>
+              
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Quality Score</h3>
+                <p className="text-3xl font-bold text-orange-600">{qualityScore}%</p>
+                <p className="text-sm text-gray-600">Based on tier distribution</p>
               </div>
             </div>
 
-            {/* Reach Methodology Explanation */}
-            {showMethodology && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-                <div className="flex items-start">
-                  <Info className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
-                  <div>
-                    <h4 className="text-sm font-medium text-blue-900 mb-2">How We Calculate Reach</h4>
-                    <p className="text-sm text-blue-800 leading-relaxed">
-                      Reach estimates are based on industry-standard calculations where individual article reach 
-                      typically represents 1-5% of a publication's total monthly readership. These numbers reflect 
-                      realistic article visibility rather than total publication audience. For unknown publications, 
-                      we use conservative estimates based on publication type and characteristics.
-                    </p>
-                  </div>
+            {/* Trend Charts */}
+            {analytics.monthlyTrends.length > 0 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Coverage Volume Trend */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Coverage Volume Over Time</h3>
+                  <LineChart
+                    data={analytics.monthlyTrends.map(m => ({ key: m.key, label: m.label, value: m.count }))}
+                    color="#3b82f6"
+                    label="Articles"
+                  />
+                </div>
+
+                {/* Quality Score Trend */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Quality Score Trend</h3>
+                  <LineChart
+                    data={analytics.monthlyTrends.map(m => ({ key: m.key, label: m.label, value: m.qualityScore }))}
+                    color="#f59e0b"
+                    label="Quality %"
+                  />
+                </div>
+
+                {/* Reach Trend */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Total Reach Over Time</h3>
+                  <LineChart
+                    data={analytics.monthlyTrends.map(m => ({ key: m.key, label: m.label, value: m.reach }))}
+                    color="#10b981"
+                    label="Reach"
+                  />
+                </div>
+
+                {/* Average Reach Trend */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Average Reach Per Article</h3>
+                  <LineChart
+                    data={analytics.monthlyTrends.map(m => ({ 
+                      key: m.key, 
+                      label: m.label, 
+                      value: m.count > 0 ? Math.round(m.reach / m.count) : 0 
+                    }))}
+                    color="#8b5cf6"
+                    label="Avg Reach"
+                  />
                 </div>
               </div>
             )}
 
-            {/* Coverage Trend */}
-            <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Coverage Trend Over Time</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="#3B82F6" 
-                    fill="#3B82F6"
-                    fillOpacity={0.3}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              {/* Coverage Type Distribution */}
+            {/* Distribution Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Tier Distribution */}
               <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Coverage Type Analysis</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={typeData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {typeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Client Breakdown */}
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Coverage by Client/Type</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={clientData} layout="horizontal">
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={120} fontSize={12} />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#10B981" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Outlets & Reach Tab */}
-        {activeTab === 'outlets' && (
-          <>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              {/* Coverage by Outlet */}
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Coverage Volume by Outlet</h3>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={outletData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45}
-                      textAnchor="end"
-                      height={100}
-                      fontSize={11}
-                    />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Reach Analysis */}
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Estimated Reach by Outlet</h3>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={outletData.filter(item => item.reach > 0)}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      angle={-45}
-                      textAnchor="end"
-                      height={100}
-                      fontSize={11}
-                    />
-                    <YAxis tickFormatter={formatReach} />
-                    <Tooltip formatter={(value) => [formatReach(Number(value)), 'Total Reach']} />
-                    <Bar dataKey="reach" fill="#10B981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Detailed Outlet Analysis */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h3 className="text-lg font-semibold text-gray-900">Detailed Outlet Performance</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Outlet</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Coverage Count</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Reach</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Reach</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Efficiency Score</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {outletData.map((outlet, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {outlet.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {outlet.value}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatReach(outlet.reach)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {outlet.reach > 0 ? formatReach(outlet.avgReach) : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                            outlet.avgReach > 500000 ? 'bg-green-100 text-green-800' :
-                            outlet.avgReach > 200000 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {outlet.avgReach > 500000 ? 'High' : outlet.avgReach > 200000 ? 'Medium' : 'Standard'}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Reporter Network Tab */}
-        {activeTab === 'reporters' && (
-          <>
-            <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Media Contacts</h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={reporterData} layout="horizontal">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={150} fontSize={12} />
-                  <Tooltip 
-                    formatter={(value, name) => [value, name === 'count' ? 'Coverage Count' : 'Outlets']}
-                    labelFormatter={(label) => `Reporter: ${label}`}
-                  />
-                  <Bar dataKey="count" fill="#3B82F6" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Reporter Relationship Matrix */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h3 className="text-lg font-semibold text-gray-900">Reporter Relationship Analysis</h3>
-                <p className="text-sm text-gray-600">Key contacts and their outlet diversity</p>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {reporterData.slice(0, 9).map((reporter, index) => (
-                    <div key={index} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h4 className="font-medium text-gray-900">{reporter.name}</h4>
-                          <p className="text-sm text-gray-600">{reporter.count} articles</p>
-                        </div>
-                        <div className="text-right">
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {reporter.outlets} outlet{reporter.outlets !== 1 ? 's' : ''}
+                <h3 className="text-lg font-semibold text-gray-800 mb-6">Coverage by Tier</h3>
+                <div className="space-y-4">
+                  {Object.entries(analytics.tierDistribution).map(([tier, count]) => {
+                    const percentage = analytics.totalItems > 0 ? (count / analytics.totalItems) * 100 : 0;
+                    const tierColors: Record<string, string> = {
+                      tier1: 'bg-green-500',
+                      tier2: 'bg-blue-500',
+                      tier3: 'bg-yellow-500',
+                      unknown: 'bg-gray-500'
+                    };
+                    return (
+                      <div key={tier} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full ${tierColors[tier] || 'bg-gray-500'}`}></div>
+                          <span className="text-sm font-medium capitalize">
+                            {tier.startsWith('tier') ? tier.replace('tier', 'Tier ') : 'Unknown'}
                           </span>
                         </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Active at:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {reporter.outletList.slice(0, 3).map((outlet, i) => (
-                            <span key={i} className="inline-block px-2 py-1 rounded text-xs bg-gray-100 text-gray-700">
-                              {outlet}
-                            </span>
-                          ))}
-                          {reporter.outletList.length > 3 && (
-                            <span className="inline-block px-2 py-1 rounded text-xs bg-gray-100 text-gray-700">
-                              +{reporter.outletList.length - 3} more
-                            </span>
-                          )}
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm text-gray-600 w-8">{count}</span>
+                          <div className="w-24 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full ${tierColors[tier] || 'bg-gray-500'}`}
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-sm text-gray-600 w-10">{percentage.toFixed(0)}%</span>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Client Distribution */}
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-6">Coverage by Topic</h3>
+                <div className="space-y-4 max-h-64 overflow-y-auto">
+                  {Object.entries(analytics.clientDistribution)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 10)
+                    .map(([client, count]) => {
+                      const percentage = analytics.totalItems > 0 ? (count / analytics.totalItems) * 100 : 0;
+                      return (
+                        <div key={client} className="flex items-center justify-between">
+                          <span className="text-sm font-medium truncate flex-1 mr-3">{client}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-600 w-8">{count}</span>
+                            <div className="w-20 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="h-2 rounded-full bg-blue-500"
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm text-gray-600 w-10">{percentage.toFixed(0)}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
 
-        {/* Content Analysis Tab */}
-        {activeTab === 'content' && (
-          <>
-            {/* Recent Coverage */}
-            <div className="bg-white rounded-lg shadow-sm border mb-8">
-              <div className="p-6 border-b">
-                <h3 className="text-lg font-semibold text-gray-900">Latest Coverage</h3>
-                <p className="text-sm text-gray-600">Most recent media mentions with details</p>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {recentCoverage.map((item, index) => (
-                    <div key={index} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900 mb-1 line-clamp-2">
-                            {item.title}
-                          </h4>
-                          <div className="flex items-center text-sm text-gray-600 mb-2">
-                            <Calendar className="w-4 h-4 mr-1" />
-                            {formatDate(item.Date)}
-                            <span className="mx-2">•</span>
-                            <Building className="w-4 h-4 mr-1" />
-                            {item.Outlet}
-                          </div>
-                          <div className="flex items-center text-sm text-gray-600 mb-2">
-                            <User className="w-4 h-4 mr-1" />
-                            {item.reporter}
-                            {item.estimatedReach > 0 && (
-                              <>
-                                <span className="mx-2">•</span>
-                                <Eye className="w-4 h-4 mr-1" />
-                                {formatReach(item.estimatedReach)}
-                              </>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mb-2">
-                            {item.Type && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {item.Type}
-                              </span>
-                            )}
-                            {item.client !== 'N/A' && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                {item.client}
-                              </span>
-                            )}
-                          </div>
-                          {item.Notes && (
-                            <p className="text-xs text-gray-600 line-clamp-2">{item.Notes}</p>
-                          )}
-                        </div>
-                        {item.Link && (
-                          <a
-                            href={String(item.Link)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 ml-2"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+        {activeTab === 'details' && (
+          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <div className="p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+              <p className="text-lg text-gray-800 font-medium">{sortedFilteredData.length} articles found</p>
+              <p className="text-sm text-gray-600">Sorted by most recent first</p>
             </div>
-
-            {/* High Impact Coverage */}
-            {highImpactCoverage.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border">
-                <div className="p-6 border-b">
-                  <h3 className="text-lg font-semibold text-gray-900">High Impact Coverage</h3>
-                  <p className="text-sm text-gray-600">Coverage with significant reach (500K+ estimated)</p>
-                </div>
-                <div className="p-6">
-                  <div className="space-y-4">
-                    {highImpactCoverage.slice(0, 6).map((item, index) => (
-                      <div key={index} className="border rounded-lg p-4 bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900 mb-1">
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Outlet</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Article</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Client</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Tier</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Reach</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {sortedFilteredData.map((item, index) => (
+                    <tr key={index} className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                        {formatDate(item.Date)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-semibold text-gray-900">{item.Outlet}</div>
+                        <div className="text-sm text-gray-600">{cleanText(item.Reporter)}</div>
+                      </td>
+                      <td className="px-6 py-4 max-w-md">
+                        <div className="text-sm text-gray-900 font-medium leading-relaxed" title={item.title}>
+                          {item.Link ? (
+                            <a 
+                              href={item.Link} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline"
+                            >
                               {item.title}
-                            </h4>
-                            <div className="flex items-center text-sm text-gray-600 mb-2">
-                              <Eye className="w-4 h-4 mr-1" />
-                              {formatReach(item.estimatedReach)} estimated reach
-                              <span className="mx-2">•</span>
-                              <Building className="w-4 h-4 mr-1" />
-                              {item.Outlet}
-                              <span className="mx-2">•</span>
-                              <User className="w-4 h-4 mr-1" />
-                              {item.reporter}
-                            </div>
-                            <div className="flex items-center text-sm text-gray-500">
-                              <Calendar className="w-4 h-4 mr-1" />
-                              {formatDate(item.Date)}
-                              {item.Type && (
-                                <>
-                                  <span className="mx-2">•</span>
-                                  <span className="text-blue-600">{item.Type}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                              <Star className="w-3 h-3 mr-1" />
-                              High Impact
-                            </span>
-                            {item.Link && (
-                              <a
-                                href={String(item.Link)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block text-blue-600 hover:text-blue-800 mt-2"
-                              >
-                                <ExternalLink className="w-4 h-4" />
-                              </a>
-                            )}
-                          </div>
+                            </a>
+                          ) : (
+                            item.title
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-gray-900">{item.client}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${
+                          item.reachData.tier === 'tier1' ? 'bg-green-100 text-green-800 border border-green-200' :
+                          item.reachData.tier === 'tier2' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                          item.reachData.tier === 'tier3' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                          'bg-gray-100 text-gray-800 border border-gray-200'
+                        }`}>
+                          {!item.reachData.tier ? 'Unknown' : item.reachData.tier?.replace('tier', 'Tier ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-bold text-gray-900">
+                          {(item.reachData.estimatedReach || 0).toLocaleString()}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {sortedFilteredData.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 text-6xl mb-4">📰</div>
+                  <p className="text-lg text-gray-500 font-medium">No coverage found</p>
+                  <p className="text-sm text-gray-400">Try adjusting your filters to see more results</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'methodology' && (
+          <div className="bg-white rounded-lg shadow-sm border p-8">
+            <h3 className="text-2xl font-bold text-gray-800 mb-6">Reach Calculation Methodology</h3>
+            
+            <div className="prose max-w-none">
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">Data Sources</h4>
+              <p className="text-gray-700 mb-4">
+                Our reach calculations utilize three data sources in order of preference:
+              </p>
+              <ol className="list-decimal list-inside text-gray-700 mb-6 space-y-2">
+                <li><strong>Verified Database:</strong> Industry-confirmed readership data with calculated article reach (1-5% of total publication audience)</li>
+                <li><strong>Web Search Enhancement:</strong> Real-time search for circulation data on unknown publications, parsed and validated</li>
+                <li><strong>Conservative Estimates:</strong> Pattern-based estimates for publications without available data</li>
+              </ol>
+
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">Reach Calculation</h4>
+              <p className="text-gray-700 mb-4">
+                <strong>Average reach per article is consistently based on 3% of publication readership.</strong> 
+                All reach numbers represent realistic article-level engagement, not total publication readership. 
+                This 3% rate aligns with industry-standard engagement rates, adjusted by publication tier and content type.
+              </p>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                <p className="text-amber-800 text-sm">
+                  <strong>Note:</strong> Total reach numbers include duplication - the same person may read multiple articles. 
+                  These figures represent cumulative estimated readership across all coverage.
+                </p>
+              </div>
+
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">Quality Score Methodology</h4>
+              <p className="text-gray-700 mb-4">
+                The Quality Score is calculated based on the tier distribution of your coverage:
+              </p>
+              <ul className="list-disc list-inside text-gray-700 mb-6 space-y-1">
+                <li><strong>Tier 1 publications:</strong> 3 points (major national/industry publications)</li>
+                <li><strong>Tier 2 publications:</strong> 2 points (regional/specialized publications)</li>
+                <li><strong>Tier 3 publications:</strong> 1 point (local/niche publications)</li>
+                <li><strong>Unknown tier:</strong> 0 points</li>
+              </ul>
+              <p className="text-gray-700 mb-6">
+                The final quality score is expressed as a percentage, where 100% would indicate all coverage from Tier 1 publications.
+              </p>
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <h4 className="text-lg font-semibold text-gray-800 mb-4">Current Data Quality Breakdown</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-600">
+                    {Object.values(analytics.tierDistribution).reduce((a, b) => a + b, 0)}
                   </div>
+                  <div className="text-sm text-green-800 font-medium">Total Articles Analyzed</div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-blue-600">{qualityScore}%</div>
+                  <div className="text-sm text-blue-800 font-medium">Overall Quality Score</div>
+                </div>
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {((analytics.tierDistribution.tier1 || 0) / Math.max(analytics.totalItems, 1) * 100).toFixed(0)}%
+                  </div>
+                  <div className="text-sm text-purple-800 font-medium">Tier 1 Coverage</div>
                 </div>
               </div>
-            )}
-          </>
+            </div>
+          </div>
         )}
-      </main>
+      </div>
     </div>
   );
 } 
