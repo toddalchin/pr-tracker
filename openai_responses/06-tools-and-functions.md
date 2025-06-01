@@ -2,10 +2,11 @@
 
 ## Overview
 
-The Responses API supports two categories of tools to extend the model's capabilities:
+The Responses API supports multiple categories of tools to extend the model's capabilities:
 
-1. **Built-in Tools**: Provided by OpenAI (web search, file search, computer use)
-2. **Function Calls**: Custom tools you define and implement
+1. **Built-in Tools**: Provided by OpenAI (web search, file search, computer use, **Code Interpreter**, **image generation**)
+2. **Remote MCP Servers**: Connect to third-party Model Context Protocol servers
+3. **Function Calls**: Custom tools you define and implement
 
 ## Built-in Tools
 
@@ -35,9 +36,9 @@ Enables the model to search the web for current information.
 }
 ```
 
-### File Search
+### File Search (Enhanced - May 2025)
 
-Searches through uploaded documents and files.
+Searches through uploaded documents and files with enhanced capabilities for reasoning models.
 
 ```json
 {
@@ -45,15 +46,112 @@ Searches through uploaded documents and files.
 }
 ```
 
-**Capabilities:**
-- Document analysis
-- Information extraction
-- Cross-reference checking
-- Content summarization
+**New Capabilities (May 2025):**
+- **Reasoning Model Support**: Works with o-series models (o1, o3, o3-mini, o4-mini)
+- **Multi-Vector Store Search**: Search across up to two vector stores simultaneously
+- **Attribute Filtering with Arrays**: Enhanced filtering capabilities
+- **Document Chunk Retrieval**: Pull relevant chunks based on user queries
+
+**Enhanced Configuration:**
+```json
+{
+  "tools": [{
+    "type": "file_search",
+    "file_search": {
+      "max_num_results": 20,
+      "vector_store_ids": ["vs_123", "vs_456"]
+    }
+  }]
+}
+```
 
 **Requirements:**
 - Files must be uploaded via the Files API first
-- Files should be associated with the request
+- Files should be associated with vector stores
+- For reasoning models, ensures relevant context is pulled into reasoning process
+
+### Code Interpreter (NEW - May 2025)
+
+Allows models to write and run Python code in a sandboxed environment.
+
+```json
+{
+  "tools": [{
+    "type": "code_interpreter",
+    "container": {"type": "auto"}
+  }]
+}
+```
+
+**Capabilities:**
+- **Data Analysis**: Process and analyze complex datasets
+- **Mathematical Problem Solving**: Solve complex equations and calculations
+- **Code Execution**: Write and run Python iteratively until success
+- **Image Understanding**: Deep image analysis and processing (especially for o3/o4-mini)
+- **File Generation**: Create CSV files, plots, graphs, and other outputs
+- **Image Processing**: Crop, zoom, rotate, and manipulate images
+
+**Container Management:**
+```json
+// Auto mode - creates or reuses containers automatically
+{
+  "type": "code_interpreter",
+  "container": {
+    "type": "auto",
+    "files": ["file-1", "file-2"]
+  }
+}
+
+// Explicit mode - use a specific container
+{
+  "type": "code_interpreter", 
+  "container": "cntr_abc123"
+}
+```
+
+**Enhanced with Reasoning Models:**
+- **o3 and o4-mini** use Code Interpreter within their chain-of-thought
+- Improved benchmark performance on Humanity's Last Exam
+- "Thinking with images" - deep visual intelligence through code
+
+**Pricing:** $0.03 per container creation
+
+### Image Generation (NEW - May 2025)
+
+Generate images using the latest gpt-image-1 model.
+
+```json
+{
+  "tools": [{
+    "type": "image_generation"
+  }]
+}
+```
+
+**Capabilities:**
+- **Real-time Streaming**: See image previews as they're generated
+- **Multi-turn Edits**: Iteratively refine images with follow-up prompts
+- **High Quality**: Uses the latest gpt-image-1 model
+- **Integration**: Works seamlessly with other Responses API tools
+
+**Model Support:**
+- **Available on**: All GPT-4o series, GPT-4.1 series
+- **Reasoning Models**: Only supported on **o3** (not o1, o3-mini, or o4-mini)
+
+**Pricing:**
+- $5.00/1M text input tokens
+- $10.00/1M image input tokens
+- $40.00/1M image output tokens
+- 75% off cached input tokens
+
+**Example Usage:**
+```json
+{
+  "model": "o3",
+  "input": "Create a futuristic cityscape at sunset, then make it more cyberpunk",
+  "tools": [{"type": "image_generation"}]
+}
+```
 
 ### Computer Use
 
@@ -70,6 +168,110 @@ Interact with computer interfaces (when available).
 - Application control
 - UI automation
 - Visual interface analysis
+
+---
+
+## Remote MCP Server Support (NEW - May 2025)
+
+Connect to third-party Model Context Protocol servers hosted anywhere on the internet.
+
+### Basic MCP Integration
+
+```json
+{
+  "tools": [{
+    "type": "mcp",
+    "server_label": "shopify",
+    "server_url": "https://pitchskin.com/api/mcp",
+    "require_approval": "never"
+  }]
+}
+```
+
+### Popular MCP Servers
+
+**E-commerce & Payments:**
+- **Shopify**: `https://shopify.dev/mcp`
+- **Stripe**: `https://mcp.stripe.com`
+- **Square**: `https://developer.squareup.com/mcp`
+- **PayPal**: `https://developer.paypal.com/mcp`
+
+**Communication & CRM:**
+- **Twilio**: `https://<function-domain>.twil.io/mcp`
+- **Intercom**: `https://developers.intercom.com/mcp`
+- **HubSpot**: `https://developers.hubspot.com/mcp`
+
+**Infrastructure & Development:**
+- **Cloudflare**: `https://developers.cloudflare.com/mcp`
+- **Pipedream**: `https://pipedream.com/mcp`
+- **Zapier**: `https://zapier.com/mcp`
+
+**Data & Analytics:**
+- **Plaid**: `https://plaid.com/mcp`
+- **DeepWiki**: `https://mcp.deepwiki.com/mcp`
+
+### Authentication
+
+Most MCP servers require authentication via headers:
+
+```json
+{
+  "type": "mcp",
+  "server_label": "stripe",
+  "server_url": "https://mcp.stripe.com",
+  "headers": {
+    "Authorization": "Bearer sk_test_..."
+  }
+}
+```
+
+### Tool Filtering
+
+Limit which tools are imported from an MCP server:
+
+```json
+{
+  "type": "mcp",
+  "server_label": "deepwiki",
+  "server_url": "https://mcp.deepwiki.com/mcp",
+  "allowed_tools": ["ask_question", "read_wiki_structure"]
+}
+```
+
+### Approval Controls
+
+Control when the model can call MCP tools:
+
+```json
+// Always require approval
+"require_approval": "always"
+
+// Never require approval (for trusted servers)
+"require_approval": "never"
+
+// Selective approval
+"require_approval": {
+  "never": {
+    "tool_names": ["safe_tool_1", "safe_tool_2"]
+  }
+}
+```
+
+### How MCP Works
+
+1. **Tool Discovery**: API fetches available tools from MCP server
+2. **Model Selection**: Model chooses appropriate tools for the task
+3. **Tool Execution**: API calls MCP server with model's arguments
+4. **Result Integration**: Tool output is integrated into model's response
+
+**Important Security Notes:**
+- Only connect to trusted MCP servers
+- Review data sharing carefully
+- Use approvals for sensitive operations
+- MCP servers are subject to their own terms and conditions
+- Report malicious servers to `security@openai.com`
+
+**Pricing:** No additional cost - you're billed only for output tokens from the API
 
 ---
 

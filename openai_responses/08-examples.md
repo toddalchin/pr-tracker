@@ -1,8 +1,21 @@
-# OpenAI Responses API - Examples
+# OpenAI Responses API - Examples and Use Cases
 
-## Basic Text Generation
+## Quick Start Examples
 
-### Simple Request
+### Basic Text Generation
+
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+response = client.responses.create(
+    model="gpt-4o",
+    input="Write a short story about a robot learning to paint"
+)
+
+print(response.output_text)
+```
 
 ```javascript
 import OpenAI from "openai";
@@ -11,280 +24,785 @@ const openai = new OpenAI();
 
 const response = await openai.responses.create({
   model: "gpt-4o",
-  input: "Tell me a three sentence bedtime story about a unicorn."
+  input: "Write a short story about a robot learning to paint"
 });
 
 console.log(response.output_text);
 ```
 
-**Python:**
-```python
-import openai
-
-client = openai.OpenAI()
-
-response = client.responses.create(
-    model="gpt-4o",
-    input="Tell me a three sentence bedtime story about a unicorn."
-)
-
-print(response.output_text)
-```
-
-### With Instructions
-
-```javascript
-const response = await openai.responses.create({
-  model: "gpt-4o", 
-  input: "Explain quantum computing",
-  instructions: "You are a science teacher. Explain complex topics simply for middle school students.",
-  temperature: 0.7,
-  max_output_tokens: 500
-});
-```
-
----
-
-## Image Analysis
-
-### Analyze an Image
-
-```javascript
-const response = await openai.responses.create({
-  model: "gpt-4o",
-  input: [
-    {
-      type: "text",
-      text: "What do you see in this image? Describe it in detail."
-    },
-    {
-      type: "image_url",
-      image_url: {
-        url: "https://example.com/photo.jpg"
-      }
-    }
-  ]
-});
-
-console.log(response.output_text);
-```
-
-### Multiple Images Comparison
-
-```javascript
-const response = await openai.responses.create({
-  model: "gpt-4o",
-  input: [
-    {
-      type: "text", 
-      text: "Compare these two images and tell me the differences:"
-    },
-    {
-      type: "image_url",
-      image_url: { url: "https://example.com/image1.jpg" }
-    },
-    {
-      type: "image_url", 
-      image_url: { url: "https://example.com/image2.jpg" }
-    }
-  ]
-});
-```
-
----
-
-## Structured Output
-
-### JSON Schema Response
-
-```javascript
-const response = await openai.responses.create({
-  model: "gpt-4o",
-  input: "Extract the key information from this product description: 'Apple iPhone 15 Pro, 128GB, Blue Titanium, $999'",
-  text: {
-    format: {
-      type: "json_object",
-      json_schema: {
-        type: "object",
-        properties: {
-          brand: { type: "string" },
-          model: { type: "string" },
-          storage: { type: "string" },
-          color: { type: "string" },
-          price: { type: "number" }
-        },
-        required: ["brand", "model", "price"]
-      }
-    }
-  }
-});
-
-const data = JSON.parse(response.output_text);
-console.log(data);
-// Output: { brand: "Apple", model: "iPhone 15 Pro", storage: "128GB", color: "Blue Titanium", price: 999 }
-```
-
-### Complex Data Extraction
+### Structured Output
 
 ```python
+# Generate structured JSON output
 response = client.responses.create(
     model="gpt-4o",
-    input="Analyze this customer feedback and categorize it: 'The product arrived late and the packaging was damaged, but the quality is excellent and customer service was very helpful.'",
-    text={
-        "format": {
-            "type": "json_object", 
-            "json_schema": {
+    input="Create a product catalog entry for a wireless headphones",
+    response_format={
+        "type": "json_schema",
+        "json_schema": {
+            "name": "product_entry",
+            "strict": True,
+            "schema": {
                 "type": "object",
                 "properties": {
-                    "sentiment": {"type": "string", "enum": ["positive", "negative", "neutral"]},
-                    "categories": {
-                        "type": "array",
+                    "name": {"type": "string"},
+                    "price": {"type": "number"},
+                    "features": {
+                        "type": "array", 
                         "items": {"type": "string"}
                     },
-                    "issues": {
-                        "type": "array", 
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "category": {"type": "string"},
-                                "severity": {"type": "string", "enum": ["low", "medium", "high"]},
-                                "description": {"type": "string"}
-                            }
-                        }
-                    },
-                    "positives": {"type": "array", "items": {"type": "string"}}
+                    "rating": {"type": "number", "minimum": 1, "maximum": 5}
                 },
-                "required": ["sentiment", "categories"]
+                "required": ["name", "price", "features"],
+                "additionalProperties": False
             }
         }
     }
 )
+
+import json
+product = json.loads(response.output_text)
+print(f"Product: {product['name']} - ${product['price']}")
 ```
 
 ---
 
-## Web Search Integration
+## NEW: MCP Integration Examples (May 2025)
 
-### Current Information Lookup
+### E-commerce Workflow with Shopify + Stripe
 
-```javascript
-const response = await openai.responses.create({
-  model: "gpt-4o",
-  input: "What are the latest developments in artificial intelligence this week?",
-  tools: [{ type: "web_search" }],
-  tool_choice: "auto"
-});
+```python
+# Complete e-commerce workflow using MCP servers
+response = client.responses.create(
+    model="gpt-4.1",
+    tools=[
+        {"type": "web_search_preview"},
+        {
+            "type": "mcp",
+            "server_label": "shopify",
+            "server_url": "https://store.example.com/api/mcp",
+            "require_approval": "never"
+        },
+        {
+            "type": "mcp",
+            "server_label": "stripe",
+            "server_url": "https://mcp.stripe.com",
+            "headers": {"Authorization": "Bearer sk_live_..."},
+            "require_approval": "never"
+        }
+    ],
+    input="""
+    I need to:
+    1. Search for trending skincare products 
+    2. Add the top-rated moisturizer to my cart
+    3. Create a payment link for checkout
+    """
+)
 
-console.log(response.output_text);
+print(response.output_text)
 ```
 
-### Fact Checking
+### Financial Analysis with Plaid + DeepWiki
+
+```python
+# Financial data analysis using multiple MCP servers
+response = client.responses.create(
+    model="o3",
+    tools=[
+        {
+            "type": "mcp",
+            "server_label": "plaid",
+            "server_url": "https://plaid.com/mcp",
+            "headers": {"Authorization": "Bearer access-sandbox-..."}
+        },
+        {
+            "type": "mcp",
+            "server_label": "deepwiki",
+            "server_url": "https://mcp.deepwiki.com/mcp"
+        },
+        {
+            "type": "code_interpreter",
+            "container": {"type": "auto"}
+        }
+    ],
+    input="""
+    Research the latest fintech trends from GitHub repositories,
+    analyze my transaction patterns from the last 3 months,
+    and create a comprehensive financial health report with visualizations.
+    """,
+    reasoning={"effort": "high", "summary": "auto"}
+)
+```
+
+### Communication Automation with Twilio + HubSpot
+
+```python
+# Automated communication workflow
+response = client.responses.create(
+    model="gpt-4.1", 
+    tools=[
+        {"type": "web_search"},
+        {
+            "type": "mcp",
+            "server_label": "twilio",
+            "server_url": "https://your-domain.twil.io/mcp",
+            "headers": {"x-twilio-signature": "..."}
+        },
+        {
+            "type": "mcp",
+            "server_label": "hubspot",
+            "server_url": "https://developers.hubspot.com/mcp",
+            "headers": {"Authorization": "Bearer pat-na1-..."}
+        }
+    ],
+    input="""
+    Find the latest AI and tech news from this week,
+    update our CRM with key industry insights,
+    and send SMS alerts to our sales team about relevant opportunities.
+    """
+)
+```
+
+---
+
+## NEW: Code Interpreter Examples (May 2025)
+
+### Data Analysis and Visualization
+
+```python
+# Complex data analysis with Code Interpreter
+response = client.responses.create(
+    model="o3",  # o3 uses Code Interpreter in reasoning
+    tools=[{
+        "type": "code_interpreter",
+        "container": {
+            "type": "auto",
+            "files": ["sales_data.csv", "customer_data.csv"]
+        }
+    }],
+    input="""
+    Analyze the sales and customer data to:
+    1. Identify seasonal trends and patterns
+    2. Segment customers by behavior and value
+    3. Predict next quarter's revenue
+    4. Create comprehensive visualizations
+    5. Generate actionable recommendations
+    """,
+    reasoning={"effort": "high", "summary": "auto"}
+)
+
+# Download generated files
+for item in response.output:
+    if item.type == "code_interpreter_call" and item.output:
+        for file_ref in item.output.get("files", []):
+            # Download the file using container files API
+            file_content = client.containers.files.content(
+                container_id=item.container_id,
+                file_id=file_ref["file_id"]
+            )
+            with open(f"analysis_{file_ref['filename']}", "wb") as f:
+                f.write(file_content)
+```
+
+### Mathematical Problem Solving
+
+```python
+# Advanced mathematics with step-by-step reasoning
+response = client.responses.create(
+    model="o4-mini",  # Excellent for math with Code Interpreter
+    tools=[{
+        "type": "code_interpreter",
+        "container": {"type": "auto"}
+    }],
+    instructions="""
+    You are an expert mathematics tutor. For each problem:
+    1. Explain the concept clearly
+    2. Show step-by-step solution using code
+    3. Verify your answer
+    4. Create visualizations when helpful
+    """,
+    input="""
+    Solve this system of differential equations:
+    dx/dt = 2x - y
+    dy/dt = x + 3y
+    
+    With initial conditions x(0) = 1, y(0) = 0
+    Plot the solution and explain the behavior.
+    """,
+    reasoning={"summary": "auto"}
+)
+```
+
+### Image Processing and Analysis
+
+```python
+# Advanced image analysis with o3/o4-mini "thinking with images"
+response = client.responses.create(
+    model="o3",  # Can use Code Interpreter for deep image understanding
+    tools=[{
+        "type": "code_interpreter",
+        "container": {
+            "type": "auto",
+            "files": ["medical_scan.png", "historical_image.jpg"]
+        }
+    }],
+    input="""
+    Analyze these images in detail:
+    1. Extract and enhance text from the historical image
+    2. Perform detailed analysis of the medical scan
+    3. Create comparison visualizations
+    4. Generate detailed reports with findings
+    
+    Use advanced image processing techniques and provide comprehensive analysis.
+    """,
+    reasoning={"effort": "high", "summary": "auto"}
+)
+```
+
+---
+
+## NEW: Image Generation Examples (May 2025)
+
+### Basic Image Generation
+
+```python
+# Generate images with the latest gpt-image-1 model
+response = client.responses.create(
+    model="o3",  # Only o3 supports image generation in reasoning models
+    tools=[{"type": "image_generation"}],
+    input="Create a futuristic cityscape at sunset with flying cars and neon lights"
+)
+
+# Access generated images
+for item in response.output:
+    if item.type == "image_generation_call":
+        print(f"Generated image: {item.image_url}")
+```
+
+### Multi-turn Image Editing
+
+```python
+# Iterative image refinement
+response1 = client.responses.create(
+    model="gpt-4.1",  # GPT-4.1 series supports image generation
+    tools=[{"type": "image_generation"}],
+    input="Create a minimalist logo for a tech startup called 'NeuralFlow'"
+)
+
+# Continue with refinements
+response2 = client.responses.create(
+    model="gpt-4.1",
+    tools=[{"type": "image_generation"}],
+    previous_response_id=response1.id,
+    input="Make the logo more modern and add a subtle gradient effect"
+)
+
+response3 = client.responses.create(
+    model="gpt-4.1", 
+    tools=[{"type": "image_generation"}],
+    previous_response_id=response2.id,
+    input="Create variations in different color schemes: blue, green, and purple"
+)
+```
+
+### Streaming Image Generation
+
+```python
+# Stream image generation with real-time previews
+stream = client.responses.create(
+    model="gpt-4.1",
+    tools=[{"type": "image_generation"}],
+    input="Create a detailed fantasy landscape with mountains, forests, and magical elements",
+    stream=True
+)
+
+for event in stream:
+    if event.type == "response.image_generation_call.partial_image":
+        print(f"Image generation progress: {event.progress}%")
+        # Preview URL available: event.preview_url
+    elif event.type == "response.image_generation_call.completed":
+        print(f"Final image: {event.image_url}")
+```
+
+---
+
+## NEW: Background Processing Examples (May 2025)
+
+### Long-form Content Generation
+
+```python
+# Generate a comprehensive research report in background
+response = client.responses.create(
+    model="o3",
+    input="""
+    Write a comprehensive 10,000-word research report on:
+    "The Future of Artificial Intelligence in Healthcare: 
+    Opportunities, Challenges, and Ethical Considerations"
+    
+    Include:
+    - Executive summary
+    - Current state analysis
+    - Emerging technologies review
+    - Case studies from leading institutions
+    - Regulatory landscape analysis
+    - Future predictions and recommendations
+    - Comprehensive bibliography
+    """,
+    tools=[
+        {"type": "web_search"},
+        {"type": "code_interpreter", "container": {"type": "auto"}}
+    ],
+    background=True,
+    reasoning={"effort": "high", "summary": "auto"}
+)
+
+print(f"Started background task: {response.id}")
+
+# Poll for completion
+import time
+
+while response.status in {"queued", "in_progress"}:
+    print(f"Status: {response.status}")
+    time.sleep(30)  # Check every 30 seconds
+    response = client.responses.retrieve(response.id)
+
+if response.status == "completed":
+    print("Report completed!")
+    print(f"Word count: {len(response.output_text.split())}")
+```
+
+### Batch Data Processing
+
+```python
+# Process multiple datasets in background
+def process_batch_analysis(datasets):
+    background_tasks = []
+    
+    for i, dataset in enumerate(datasets):
+        response = client.responses.create(
+            model="o3",
+            input=f"""
+            Perform comprehensive analysis on dataset {i+1}:
+            1. Statistical summary and data quality assessment
+            2. Identify patterns, trends, and anomalies
+            3. Create detailed visualizations
+            4. Generate actionable insights
+            5. Provide recommendations
+            """,
+            tools=[{
+                "type": "code_interpreter",
+                "container": {
+                    "type": "auto",
+                    "files": [dataset]
+                }
+            }],
+            background=True,
+            reasoning={"effort": "medium", "summary": "auto"}
+        )
+        
+        background_tasks.append({
+            "id": response.id,
+            "dataset": dataset,
+            "status": response.status
+        })
+    
+    return background_tasks
+
+# Monitor batch processing
+def monitor_batch(tasks):
+    completed = []
+    
+    while len(completed) < len(tasks):
+        for task in tasks:
+            if task["id"] not in [c["id"] for c in completed]:
+                response = client.responses.retrieve(task["id"])
+                
+                if response.status == "completed":
+                    completed.append({
+                        "id": task["id"],
+                        "dataset": task["dataset"],
+                        "result": response.output_text[:200] + "..."
+                    })
+                    print(f"✅ Completed analysis for {task['dataset']}")
+                elif response.status == "failed":
+                    print(f"❌ Failed analysis for {task['dataset']}")
+        
+        time.sleep(10)
+    
+    return completed
+
+# Usage
+datasets = ["sales_q1.csv", "sales_q2.csv", "sales_q3.csv", "sales_q4.csv"]
+tasks = process_batch_analysis(datasets)
+results = monitor_batch(tasks)
+```
+
+### Background Streaming with Resume
+
+```python
+# Start background task with streaming
+stream = client.responses.create(
+    model="o3",
+    input="Write a detailed technical documentation for a complex software system",
+    background=True,
+    stream=True
+)
+
+cursor = None
+try:
+    for event in stream:
+        print(f"Event: {event.type}")
+        if hasattr(event, 'sequence_number'):
+            cursor = event.sequence_number
+        
+        if event.type == "response.message.delta":
+            print(event.delta, end="", flush=True)
+            
+except ConnectionError:
+    print("Connection lost, resuming from cursor:", cursor)
+    
+    # Resume streaming (when SDK support is available)
+    # For now, poll the response
+    response = client.responses.retrieve(stream.response_id)
+    while response.status in {"queued", "in_progress"}:
+        time.sleep(5)
+        response = client.responses.retrieve(stream.response_id)
+    
+    print("Task completed:", response.output_text)
+```
+
+---
+
+## NEW: Reasoning Features Examples (May 2025)
+
+### Mathematical Reasoning with Summaries
+
+```python
+# Complex mathematical reasoning with transparency
+response = client.responses.create(
+    model="o4-mini",
+    input="""
+    Prove that the sum of the first n positive integers is n(n+1)/2.
+    Use multiple approaches: 
+    1. Mathematical induction
+    2. Direct combinatorial argument  
+    3. Numerical verification for specific cases
+    """,
+    tools=[{
+        "type": "code_interpreter",
+        "container": {"type": "auto"}
+    }],
+    reasoning={
+        "effort": "high",
+        "summary": "detailed"  # Get detailed reasoning summaries
+    }
+)
+
+# Analyze the reasoning process
+for item in response.output:
+    if item.type == "reasoning_summary":
+        print(f"Reasoning Summary: {item.summary}")
+        print("-" * 50)
+```
+
+### Enterprise Reasoning Context Management
+
+```python
+# ZDR-compatible reasoning workflow for enterprises
+class EnterpriseAnalysisSession:
+    def __init__(self, client, session_id):
+        self.client = client
+        self.session_id = session_id
+        self.reasoning_context = []
+    
+    def analyze_with_context(self, query, **kwargs):
+        """Perform analysis while maintaining reasoning context"""
+        
+        # Include previous reasoning context
+        full_input = [
+            *self.reasoning_context,
+            {"type": "message", "content": query}
+        ]
+        
+        response = self.client.responses.create(
+            model="o3",
+            input=full_input,
+            store=False,  # ZDR requirement
+            include=["reasoning.encrypted_content"],
+            reasoning={"effort": "high", "summary": "auto"},
+            **kwargs
+        )
+        
+        # Extract and store reasoning for next request
+        new_reasoning = [
+            item for item in response.output 
+            if item.type == "reasoning" and hasattr(item, 'encrypted_content')
+        ]
+        self.reasoning_context.extend(new_reasoning)
+        
+        return response
+
+# Usage for complex multi-step analysis
+session = EnterpriseAnalysisSession(client, "market_analysis_2025")
+
+# Step 1: Initial market research
+response1 = session.analyze_with_context(
+    "Analyze the current AI/ML market landscape and identify key trends",
+    tools=[{"type": "web_search"}]
+)
+
+# Step 2: Competitive analysis (builds on previous reasoning)
+response2 = session.analyze_with_context(
+    "Based on the market analysis, identify top 5 competitors and their strategies"
+)
+
+# Step 3: Strategic recommendations (leverages all previous reasoning)
+response3 = session.analyze_with_context(
+    "Given the market landscape and competitive analysis, provide strategic recommendations for a new AI startup"
+)
+
+print("Final recommendations:", response3.output_text)
+```
+
+### Reasoning Analysis and Debugging
+
+```python
+# Analyze reasoning patterns for optimization
+def analyze_reasoning_session(responses):
+    analysis = {
+        "total_requests": len(responses),
+        "reasoning_quality": [],
+        "tool_usage_patterns": [],
+        "performance_metrics": {}
+    }
+    
+    for i, response in enumerate(responses):
+        # Analyze reasoning summaries
+        for item in response.output:
+            if item.type == "reasoning_summary":
+                analysis["reasoning_quality"].append({
+                    "request": i + 1,
+                    "summary_length": len(item.summary),
+                    "complexity_indicators": [
+                        word for word in ["because", "therefore", "however", "moreover"]
+                        if word in item.summary.lower()
+                    ]
+                })
+            
+            elif item.type in ["code_interpreter_call", "web_search_call", "mcp_call"]:
+                analysis["tool_usage_patterns"].append({
+                    "request": i + 1,
+                    "tool": item.type,
+                    "success": not hasattr(item, 'error') or item.error is None
+                })
+    
+    return analysis
+
+# Run analysis session
+responses = [response1, response2, response3]
+reasoning_analysis = analyze_reasoning_session(responses)
+print("Reasoning Analysis:", reasoning_analysis)
+```
+
+---
+
+## Multi-Modal Examples
+
+### Image Analysis with Text
 
 ```python
 response = client.responses.create(
     model="gpt-4o",
-    input="Verify this claim and provide sources: 'Electric vehicles now make up 30% of new car sales in Norway'",
-    tools=[{"type": "web_search"}],
-    include=["web_search_call.results"]
+    input=[
+        {"type": "text", "text": "Analyze this image and describe what you see"},
+        {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+    ]
 )
 
 print(response.output_text)
-# Check response.output for search results
+```
+
+### Document Analysis
+
+```python
+# Analyze uploaded documents
+response = client.responses.create(
+    model="gpt-4o",
+    input=[
+        {"type": "text", "text": "Summarize the key points from this document"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+    ],
+    tools=[{"type": "file_search"}]
+)
+```
+
+---
+
+## Tool Integration
+
+### Web Search with Follow-up Analysis
+
+```python
+response = client.responses.create(
+    model="gpt-4o",
+    input="Research the latest developments in quantum computing and provide a technical summary",
+    tools=[{"type": "web_search"}]
+)
+
+print(response.output_text)
+```
+
+### File Search and Summarization
+
+```python
+# Upload files first (using Files API)
+file1 = client.files.create(
+    file=open("research_paper.pdf", "rb"),
+    purpose="responses"
+)
+
+file2 = client.files.create(
+    file=open("technical_report.pdf", "rb"), 
+    purpose="responses"
+)
+
+# Search and analyze files
+response = client.responses.create(
+    model="gpt-4o",
+    input="Compare the methodologies used in these research papers",
+    tools=[{"type": "file_search"}],
+    tool_resources={
+        "file_search": {
+            "file_ids": [file1.id, file2.id]
+        }
+    }
+)
+
+print(response.output_text)
+```
+
+### Computer Use Automation
+
+```python
+# Automate computer tasks (when available)
+response = client.responses.create(
+    model="gpt-4o",
+    input="Take a screenshot, open a web browser, and navigate to the OpenAI documentation",
+    tools=[{"type": "computer_use"}]
+)
+
+print(response.output_text)
 ```
 
 ---
 
 ## Function Calling
 
-### Weather Function
-
-```javascript
-// Define the function
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "get_weather",
-      description: "Get current weather for a location",
-      parameters: {
-        type: "object",
-        properties: {
-          location: {
-            type: "string",
-            description: "City and state, e.g. San Francisco, CA"
-          },
-          unit: {
-            type: "string",
-            enum: ["celsius", "fahrenheit"],
-            description: "Temperature unit"
-          }
-        },
-        required: ["location"]
-      }
-    }
-  }
-];
-
-// Initial request
-const response = await openai.responses.create({
-  model: "gpt-4o",
-  input: "What's the weather like in New York?",
-  tools: tools,
-  tool_choice: "auto"
-});
-
-// Check if function was called
-if (response.output[0].type === "function_call") {
-  const functionCall = response.output[0];
-  const args = JSON.parse(functionCall.function.arguments);
-  
-  // Execute the function (implement this part)
-  const weatherData = await getWeatherData(args.location, args.unit);
-  
-  // Provide result back to model
-  const finalResponse = await openai.responses.create({
-    model: "gpt-4o",
-    input: [
-      {
-        type: "function_result",
-        function_call_id: functionCall.id,
-        result: weatherData
-      }
-    ],
-    previous_response_id: response.id
-  });
-  
-  console.log(finalResponse.output_text);
-}
-```
-
-### Database Query Function
+### Basic Function Implementation
 
 ```python
-import json
+def get_weather(location, unit="fahrenheit"):
+    # Simulate weather API call
+    return {
+        "location": location,
+        "temperature": 72 if unit == "fahrenheit" else 22,
+        "condition": "sunny", 
+        "humidity": 45
+    }
 
-def execute_sql_query(query, params=None):
-    # Your database implementation here
-    # Return results as dictionary
-    pass
+# Define function for the model
+weather_function = {
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "City and state, e.g., San Francisco, CA"
+                },
+                "unit": {
+                    "type": "string", 
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "Temperature unit"
+                }
+            },
+            "required": ["location"]
+        }
+    }
+}
 
-tools = [
+# First request - model will call the function
+response = client.responses.create(
+    model="gpt-4o",
+    input="What's the weather like in New York?",
+    tools=[weather_function]
+)
+
+# Handle function call
+for item in response.output:
+    if item.type == "function_call":
+        import json
+        args = json.loads(item.function.arguments)
+        result = get_weather(**args)
+        
+        # Second request with function result
+        follow_up = client.responses.create(
+            model="gpt-4o",
+            input=[
+                {
+                    "type": "function_result",
+                    "function_call_id": item.id,
+                    "result": result
+                }
+            ],
+            previous_response_id=response.id
+        )
+        
+        print(follow_up.output_text)
+```
+
+### Complex Multi-Function Workflow
+
+```python
+# Email sending function
+def send_email(to, subject, body):
+    # Simulate email sending
+    return {"status": "sent", "message_id": "msg_123"}
+
+# Database query function  
+def query_database(query):
+    # Simulate database query
+    return [{"name": "John Doe", "status": "active", "last_login": "2024-01-15"}]
+
+functions = [
     {
         "type": "function",
         "function": {
-            "name": "query_database",
-            "description": "Execute SQL queries on the database",
+            "name": "send_email",
+            "description": "Send an email",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "SQL query to execute"
-                    },
-                    "description": {
-                        "type": "string", 
-                        "description": "Human-readable description of what this query does"
-                    }
+                    "to": {"type": "array", "items": {"type": "string"}},
+                    "subject": {"type": "string"},
+                    "body": {"type": "string"}
+                },
+                "required": ["to", "subject", "body"]
+            }
+        }
+    },
+    {
+        "type": "function", 
+        "function": {
+            "name": "query_database",
+            "description": "Query user database",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"}
                 },
                 "required": ["query"]
             }
@@ -294,209 +812,159 @@ tools = [
 
 response = client.responses.create(
     model="gpt-4o",
-    input="How many orders were placed last month?",
-    tools=tools
+    input="Find all active users and send them a welcome back email",
+    tools=functions
 )
-
-if response.output[0].type == "function_call":
-    func_call = response.output[0]
-    args = json.loads(func_call.function.arguments)
-    
-    # Execute the query
-    results = execute_sql_query(args["query"])
-    
-    # Return results
-    final_response = client.responses.create(
-        model="gpt-4o",
-        input=[
-            {
-                "type": "function_result",
-                "function_call_id": func_call.id,
-                "result": results
-            }
-        ],
-        previous_response_id=response.id
-    )
-    
-    print(final_response.output_text)
 ```
 
 ---
 
-## Streaming Responses
+## Streaming Examples
 
 ### Basic Streaming
 
-```javascript
-const stream = await openai.responses.create({
-  model: "gpt-4o",
-  input: "Write a short story about a robot learning to paint",
-  stream: true
-});
+```python
+stream = client.responses.create(
+    model="gpt-4o",
+    input="Write a creative story about space exploration",
+    stream=True
+)
 
-for await (const chunk of stream) {
-  if (chunk.type === "response.output_text.delta") {
-    process.stdout.write(chunk.delta);
-  } else if (chunk.type === "response.completed") {
-    console.log("\n✅ Stream completed");
-  }
-}
+for event in stream:
+    if event.type == "response.message.delta":
+        print(event.delta, end="", flush=True)
 ```
 
 ### Advanced Streaming with Event Handling
 
 ```python
-import json
-
 def handle_stream_events(stream):
-    buffer = ""
+    content = ""
+    function_calls = []
     
-    for chunk in stream:
-        if chunk.type == "response.output_text.delta":
-            buffer += chunk.delta
-            print(chunk.delta, end="", flush=True)
+    for event in stream:
+        if event.type == "response.message.delta":
+            content += event.delta
+            print(event.delta, end="", flush=True)
             
-        elif chunk.type == "response.web_search_call.in_progress":
-            print("\n🔍 Searching the web...")
+        elif event.type == "response.function_call.delta":
+            # Handle function call streaming
+            if event.function_call_id not in [fc["id"] for fc in function_calls]:
+                function_calls.append({
+                    "id": event.function_call_id,
+                    "name": "",
+                    "arguments": ""
+                })
             
-        elif chunk.type == "response.web_search_call.completed":
-            print("✅ Search completed")
-            
-        elif chunk.type == "response.function_call_arguments.delta":
-            print(f"\n🔧 Calling function: {chunk.delta}")
-            
-        elif chunk.type == "response.completed":
-            print("\n✅ Response completed")
-            return buffer
-            
-        elif chunk.type == "error":
-            print(f"\n❌ Error: {chunk.message}")
-            break
-    
-    return buffer
+            # Update function call data
+            for fc in function_calls:
+                if fc["id"] == event.function_call_id:
+                    if hasattr(event, "name"):
+                        fc["name"] += event.name or ""
+                    if hasattr(event, "arguments"):
+                        fc["arguments"] += event.arguments or ""
+                    break
+                    
+        elif event.type == "response.done":
+            print(f"\n✅ Response completed")
+            return content, function_calls
 
 # Usage
 stream = client.responses.create(
     model="gpt-4o",
-    input="Search for recent AI news and summarize the top 3 stories",
-    tools=[{"type": "web_search"}],
+    input="Tell me about the weather and then send a summary email",
+    tools=[weather_function, email_function],
     stream=True
 )
 
-final_text = handle_stream_events(stream)
+content, calls = handle_stream_events(stream)
 ```
 
 ---
 
-## Multi-turn Conversations
+## Conversation Management
 
-### Customer Support Bot
+### Multi-turn Conversation
 
 ```python
-class SupportBot:
+class ConversationManager:
     def __init__(self):
-        self.client = openai.OpenAI()
-        self.conversation_id = None
+        self.conversation_history = []
     
-    def start_conversation(self, user_message):
-        response = self.client.responses.create(
+    def add_message(self, role, content):
+        self.conversation_history.append({
+            "type": "message",
+            "role": role, 
+            "content": content
+        })
+    
+    def get_response(self, user_input, **kwargs):
+        # Add user message
+        self.add_message("user", user_input)
+        
+        # Get AI response
+        response = client.responses.create(
             model="gpt-4o",
-            input=user_message,
-            instructions="You are a helpful customer support agent. Be empathetic, ask clarifying questions, and provide solutions.",
-            metadata={"conversation_type": "support"}
+            input=self.conversation_history,
+            **kwargs
         )
         
-        self.conversation_id = response.id
-        return response.output_text
-    
-    def continue_conversation(self, user_message):
-        if not self.conversation_id:
-            return self.start_conversation(user_message)
+        # Add AI response to history
+        self.add_message("assistant", response.output_text)
         
-        response = self.client.responses.create(
-            model="gpt-4o",
-            input=user_message,
-            previous_response_id=self.conversation_id
-        )
-        
-        self.conversation_id = response.id
-        return response.output_text
+        return response
 
 # Usage
-bot = SupportBot()
-print(bot.start_conversation("I can't log into my account"))
-print(bot.continue_conversation("I've tried resetting my password but didn't receive an email"))
-print(bot.continue_conversation("My email is john@example.com"))
+conversation = ConversationManager()
+
+response1 = conversation.get_response("Hello, I need help planning a trip")
+print("AI:", response1.output_text)
+
+response2 = conversation.get_response("I want to go somewhere warm in December")
+print("AI:", response2.output_text)
+
+response3 = conversation.get_response("What about Thailand? Is it good for families?")
+print("AI:", response3.output_text)
 ```
 
-### Educational Tutor
-
-```javascript
-class MathTutor {
-  constructor() {
-    this.openai = new OpenAI();
-    this.currentResponseId = null;
-  }
-  
-  async startLesson(topic) {
-    const response = await this.openai.responses.create({
-      model: "gpt-4o",
-      input: `I want to learn about ${topic}`,
-      instructions: "You are a patient math tutor. Break down complex concepts into simple steps. Always check if the student understands before moving on.",
-      metadata: { conversation_type: "tutoring", subject: "mathematics" }
-    });
-    
-    this.currentResponseId = response.id;
-    return response.output_text;
-  }
-  
-  async askQuestion(question) {
-    const response = await this.openai.responses.create({
-      model: "gpt-4o",
-      input: question,
-      previous_response_id: this.currentResponseId
-    });
-    
-    this.currentResponseId = response.id;
-    return response.output_text;
-  }
-  
-  async requestExample() {
-    return this.askQuestion("Can you give me a simple example to help me understand this better?");
-  }
-}
-
-// Usage
-const tutor = new MathTutor();
-console.log(await tutor.startLesson("derivatives"));
-console.log(await tutor.askQuestion("I don't understand what a derivative represents"));
-console.log(await tutor.requestExample());
-```
-
----
-
-## File Search Integration
-
-### Document Analysis
+### Conversation with Context Windows
 
 ```python
-# Assuming files are already uploaded via Files API
-response = client.responses.create(
-    model="gpt-4o",
-    input="Summarize the key points from the quarterly financial report and identify any concerning trends",
-    tools=[{"type": "file_search"}],
-    include=["file_search_call.results"]
-)
+class ContextManagedConversation:
+    def __init__(self, max_context_length=10):
+        self.messages = []
+        self.max_context_length = max_context_length
+    
+    def add_response(self, user_input, **kwargs):
+        # Add user message
+        self.messages.append({
+            "type": "message",
+            "role": "user",
+            "content": user_input
+        })
+        
+        # Maintain context window
+        if len(self.messages) > self.max_context_length:
+            self.messages = self.messages[-self.max_context_length:]
+        
+        # Get response
+        response = client.responses.create(
+            model="gpt-4o",
+            input=self.messages,
+            **kwargs
+        )
+        
+        # Add AI response
+        self.messages.append({
+            "type": "message", 
+            "role": "assistant",
+            "content": response.output_text
+        })
+        
+        return response
 
-print(response.output_text)
-
-# Access search results if included
-for output_item in response.output:
-    if output_item.type == "file_search_call":
-        print("Files searched:", output_item.file_ids)
-        if hasattr(output_item, 'results'):
-            for result in output_item.results:
-                print(f"Found in {result.filename}: {result.content[:200]}...")
+# Usage
+managed_conversation = ContextManagedConversation(max_context_length=6)
 ```
 
 ---
@@ -598,147 +1066,131 @@ handler = RobustResponseHandler()
 response = handler.create_response_with_retry(
     model="gpt-4o",
     input="Generate a creative story",
-    temperature=0.8
+    tools=[{"type": "web_search"}]
 )
 ```
 
 ---
 
-## Production Integration Examples
+## Production Patterns
 
-### API Endpoint with Express.js
-
-```javascript
-import express from 'express';
-import OpenAI from 'openai';
-
-const app = express();
-const openai = new OpenAI();
-
-app.use(express.json());
-
-app.post('/api/chat', async (req, res) => {
-  try {
-    const { message, conversationId, userId } = req.body;
-    
-    const response = await openai.responses.create({
-      model: "gpt-4o",
-      input: message,
-      previous_response_id: conversationId,
-      user: userId,
-      metadata: {
-        endpoint: "chat",
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-    res.json({
-      message: response.output_text,
-      conversationId: response.id,
-      usage: response.usage
-    });
-    
-  } catch (error) {
-    console.error('Chat error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.post('/api/analyze-image', async (req, res) => {
-  try {
-    const { imageUrl, prompt } = req.body;
-    
-    const response = await openai.responses.create({
-      model: "gpt-4o",
-      input: [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: imageUrl } }
-      ]
-    });
-    
-    res.json({ analysis: response.output_text });
-    
-  } catch (error) {
-    console.error('Image analysis error:', error);
-    res.status(500).json({ error: 'Analysis failed' });
-  }
-});
-
-app.listen(3000, () => {
-  console.log('Server running on port 3000');
-});
-```
-
-### FastAPI Integration
+### Request Monitoring
 
 ```python
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import openai
-from typing import Optional, List
+import time
+import logging
+from typing import Dict, Any
 
-app = FastAPI()
-client = openai.OpenAI()
-
-class ChatRequest(BaseModel):
-    message: str
-    conversation_id: Optional[str] = None
-    temperature: Optional[float] = 0.7
-
-class ChatResponse(BaseModel):
-    message: str
-    conversation_id: str
-    tokens_used: int
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    try:
-        response = client.responses.create(
-            model="gpt-4o",
-            input=request.message,
-            previous_response_id=request.conversation_id,
-            temperature=request.temperature
-        )
+class ResponseMonitor:
+    def __init__(self):
+        self.metrics = {
+            "total_requests": 0,
+            "successful_requests": 0, 
+            "failed_requests": 0,
+            "total_tokens": 0,
+            "average_latency": 0
+        }
+        self.request_logs = []
+    
+    def monitored_request(self, **kwargs) -> Dict[str, Any]:
+        start_time = time.time()
+        self.metrics["total_requests"] += 1
         
-        return ChatResponse(
-            message=response.output_text,
-            conversation_id=response.id,
-            tokens_used=response.usage.total_tokens
-        )
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-class FunctionCallRequest(BaseModel):
-    message: str
-    available_functions: List[dict]
-
-@app.post("/function-call")
-async def function_call_endpoint(request: FunctionCallRequest):
-    try:
-        response = client.responses.create(
-            model="gpt-4o",
-            input=request.message,
-            tools=request.available_functions
-        )
-        
-        if response.output[0].type == "function_call":
-            return {
-                "type": "function_call",
-                "function_name": response.output[0].function.name,
-                "arguments": response.output[0].function.arguments,
-                "call_id": response.output[0].id
-            }
-        else:
-            return {
-                "type": "text_response", 
-                "message": response.output_text
-            }
+        try:
+            response = client.responses.create(**kwargs)
             
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            # Calculate metrics
+            latency = time.time() - start_time
+            self.metrics["successful_requests"] += 1
+            self.metrics["total_tokens"] += response.usage.total_tokens
+            
+            # Update average latency
+            self.metrics["average_latency"] = (
+                (self.metrics["average_latency"] * (self.metrics["successful_requests"] - 1) + latency) 
+                / self.metrics["successful_requests"]
+            )
+            
+            # Log request
+            log_entry = {
+                "timestamp": time.time(),
+                "latency": latency,
+                "tokens": response.usage.total_tokens,
+                "model": kwargs.get("model"),
+                "status": "success"
+            }
+            self.request_logs.append(log_entry)
+            
+            return response
+            
+        except Exception as e:
+            self.metrics["failed_requests"] += 1
+            
+            log_entry = {
+                "timestamp": time.time(),
+                "latency": time.time() - start_time,
+                "error": str(e),
+                "model": kwargs.get("model"),
+                "status": "failed"
+            }
+            self.request_logs.append(log_entry)
+            
+            raise
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        return self.metrics.copy()
+
+# Usage
+monitor = ResponseMonitor()
+
+response = monitor.monitored_request(
+    model="gpt-4o",
+    input="Analyze quarterly performance data",
+    tools=[{"type": "web_search"}]
+)
+
+print("Metrics:", monitor.get_metrics())
+```
+
+### Content Filtering
+
+```python
+class ContentFilter:
+    def __init__(self):
+        self.sensitive_keywords = ["confidential", "internal", "secret"]
+    
+    def filter_input(self, input_text: str) -> str:
+        """Filter sensitive content from input"""
+        filtered = input_text
+        for keyword in self.sensitive_keywords:
+            if keyword.lower() in filtered.lower():
+                filtered = filtered.replace(keyword, "[REDACTED]")
+        return filtered
+    
+    def filter_output(self, output_text: str) -> str:
+        """Filter sensitive content from output"""
+        # Implement your output filtering logic
+        return output_text
+
+# Usage with filtering
+content_filter = ContentFilter()
+
+def safe_request(**kwargs):
+    # Filter input
+    if "input" in kwargs:
+        kwargs["input"] = content_filter.filter_input(kwargs["input"])
+    
+    # Make request
+    response = client.responses.create(**kwargs)
+    
+    # Filter output
+    filtered_output = content_filter.filter_output(response.output_text)
+    
+    return {
+        "filtered_output": filtered_output,
+        "original_response": response
+    }
 ```
 
 ---
 
-*Next: [09-error-handling.md](09-error-handling.md) - Error codes and troubleshooting* 
+*These examples demonstrate the full range of capabilities in the OpenAI Responses API, from basic text generation to complex multi-agent workflows with the latest MCP integration, Code Interpreter, image generation, background processing, and reasoning features.* 
