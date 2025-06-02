@@ -67,91 +67,49 @@ export default function ClientPermissionsPage() {
     console.log('Available sheet names:', data.sheetNames);
     console.log('Available sheets:', Object.keys(data.sheets));
     
-    // Try multiple possible sheet names for permissions data
-    const possibleSheetNames = [
-      'Client Permissions', 
-      'Permissions', 
-      'Permission Requests', 
-      'Client Permission Requests', 
-      'Usage Rights',
-      'Client Permissions DB',
-      'Permissions DB',
-      'Rights',
-      'Copyright',
-      'IP Rights'
-    ];
+    // Use exact sheet name from user's mapping
+    const permissionsSheet = data.sheets['Client Permissions'] || [];
     
-    let permissionsSheet: any[] = [];
-    let foundSheetName = '';
+    console.log('Client Permissions sheet found:', permissionsSheet.length, 'rows');
+    console.log('First row sample:', permissionsSheet[0]);
     
-    for (const sheetName of possibleSheetNames) {
-      if (data.sheets[sheetName] && data.sheets[sheetName].length > 0) {
-        permissionsSheet = data.sheets[sheetName];
-        foundSheetName = sheetName;
-        console.log(`Found permissions data in sheet: "${foundSheetName}" with ${permissionsSheet.length} rows`);
-        break;
-      }
-    }
-    
-    // If no specific permissions sheet found, look for any sheet that has permission-like columns
     if (permissionsSheet.length === 0) {
-      console.log('No specific permissions sheet found, checking all sheets for permission-like data...');
-      
-      for (const [sheetName, sheetData] of Object.entries(data.sheets)) {
-        if (sheetData.length > 0) {
-          const firstRow = sheetData[0];
-          const columnNames = Object.keys(firstRow).map(k => k.toLowerCase());
-          
-          // Check if this sheet has permission-related columns
-          const hasPermissionColumns = columnNames.some(col => 
-            col.includes('permission') || 
-            col.includes('approval') || 
-            col.includes('rights') || 
-            col.includes('usage') ||
-            col.includes('asset') ||
-            col.includes('expiry')
-          );
-          
-          if (hasPermissionColumns) {
-            permissionsSheet = sheetData;
-            foundSheetName = sheetName;
-            console.log(`Found potential permissions data in sheet: "${foundSheetName}" with permission-like columns:`, columnNames);
-            break;
-          }
-        }
-      }
+      setPermissions([]);
+      return;
     }
-    
-    console.log(`Processing ${permissionsSheet.length} permission items from sheet: "${foundSheetName}"`);
-    
-    if (permissionsSheet.length > 0) {
-      console.log('Sample permission item:', permissionsSheet[0]);
-    }
-    
+
+    // Use exact field mappings provided:
+    // A: Client, B: Have We Connected with their PR/comms team?, C: NOTES / UPDATES, 
+    // D: Client lead, E: Approval Process, F: Main point of contact, G: reintroduce?
     const processedPermissions = permissionsSheet.map((item, index) => ({
-      client: String(item.Client || item['Client Name'] || item.Organization || ''),
-      project: String(item.Project || item['Project Name'] || item.Campaign || item.Event || ''),
-      assetType: String(item['Asset Type'] || item.Type || item.Asset || item.Media || ''),
-      status: String(item.Status || item['Approval Status'] || item.State || ''),
-      dateRequested: String(item['Date Requested'] || item['Request Date'] || item.Date || item.Created || ''),
-      dateApproved: String(item['Date Approved'] || item['Approval Date'] || item.Approved || ''),
-      expiryDate: String(item['Expiry Date'] || item.Expiry || item['Valid Until'] || item.Expires || ''),
-      usage: String(item.Usage || item['Usage Rights'] || item.Rights || item.Terms || ''),
-      notes: String(item.Notes || item.Comments || item.Description || ''),
-      contact: String(item.Contact || item['Contact Person'] || item.Owner || ''),
-      permissionType: String(item['Permission Type'] || item.Category || item.Kind || ''),
+      client: String(item.Client || item.A || ''),
+      connectionStatus: String(item['Have We Connected with their PR/comms team?'] || item.B || ''),
+      notes: String(item['NOTES / UPDATES'] || item.C || ''),
+      clientLead: String(item['Client lead'] || item.D || ''),
+      approvalProcess: String(item['Approval Process'] || item.E || ''),
+      mainContact: String(item['Main point of contact'] || item.F || ''),
+      reintroduce: String(item['reintroduce?'] || item.G || ''),
+      // Legacy fields for compatibility
+      project: String(item.Project || ''),
+      assetType: String(item['Asset Type'] || ''),
+      status: String(item.Status || item.connectionStatus || ''),
+      dateRequested: String(item['Date Requested'] || ''),
+      dateApproved: String(item['Date Approved'] || ''),
+      expiryDate: String(item['Expiry Date'] || ''),
+      usage: String(item.Usage || ''),
+      contact: String(item.Contact || item.mainContact || ''),
+      permissionType: String(item['Permission Type'] || ''),
       id: index + 1,
       ...item
     }));
     
-    console.log(`Processed ${processedPermissions.length} permissions`);
-    console.log('Sample processed permission:', processedPermissions[0]);
-    
     setPermissions(processedPermissions);
   }, []);
 
-  // Show all permissions by default (no filtering since this page has no filters)
-  const filteredPermissions = permissions;
+  // Show all permissions since this page doesn't have filters
+  const filteredPermissions = useMemo(() => {
+    return permissions; // Show all data, no filtering
+  }, [permissions]);
 
   // Calculate metrics whenever filtered permissions change
   useEffect(() => {

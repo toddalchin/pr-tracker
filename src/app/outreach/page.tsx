@@ -4,7 +4,7 @@ import Header from '@/components/Header';
 import { useWorksheetData } from '@/hooks/useWorksheetData';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
-import { Mail, Phone, Building, Calendar, User, Target } from 'lucide-react';
+import { Mail, Phone, Building, Calendar, User, Target, Users } from 'lucide-react';
 
 interface OutreachData {
   Name?: string;
@@ -62,21 +62,21 @@ export default function OutreachPage() {
   }
 
   const getStatusColor = (status: string | undefined) => {
-    if (!status) return 'bg-gray-100 text-gray-800';
+    if (!status) return 'bg-gray-100 text-gray-800 border-gray-200';
     const statusLower = status.toLowerCase();
     if (statusLower.includes('active') || statusLower.includes('ongoing')) {
-      return 'bg-green-100 text-green-800';
+      return 'bg-emerald-100 text-emerald-800 border-emerald-200';
     }
     if (statusLower.includes('pending') || statusLower.includes('follow-up')) {
-      return 'bg-yellow-100 text-yellow-800';
+      return 'bg-amber-100 text-amber-800 border-amber-200';
     }
     if (statusLower.includes('cold') || statusLower.includes('new')) {
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-sky-100 text-sky-800 border-sky-200';
     }
     if (statusLower.includes('closed') || statusLower.includes('declined')) {
-      return 'bg-red-100 text-red-800';
+      return 'bg-red-100 text-red-800 border-red-200';
     }
-    return 'bg-gray-100 text-gray-800';
+    return 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
   const formatDate = (dateString: string | undefined) => {
@@ -108,120 +108,139 @@ export default function OutreachPage() {
   const { active, pending, cold } = categorizeOutreach();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Media Relations
           </h1>
+          <p className="text-gray-600">Manage your media contacts and relationships</p>
         </div>
 
-        {/* Summary Cards */}
+        {/* Enhanced Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Contacts</p>
-                <p className="text-2xl font-bold text-purple-600">{outreach.length}</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Total Contacts</p>
+                <p className="text-3xl font-bold text-indigo-600">{outreach.length}</p>
+                <p className="text-xs text-gray-500 mt-1">In database</p>
               </div>
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <User className="w-6 h-6 text-purple-600" />
+              <div className="p-3 bg-indigo-100 rounded-xl">
+                <User className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Active Relationships</p>
-                <p className="text-2xl font-bold text-green-600">{active.length}</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Active Relationships</p>
+                <p className="text-3xl font-bold text-emerald-600">{active.length}</p>
+                <p className="text-xs text-gray-500 mt-1">Ongoing contacts</p>
               </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Target className="w-6 h-6 text-green-600" />
+              <div className="p-3 bg-emerald-100 rounded-xl">
+                <Target className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Pending Follow-ups</p>
-                <p className="text-2xl font-bold text-yellow-600">{pending.length}</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Pending Follow-ups</p>
+                <p className="text-3xl font-bold text-amber-600">{pending.length}</p>
+                <p className="text-xs text-gray-500 mt-1">Need attention</p>
               </div>
-              <div className="p-3 bg-yellow-100 rounded-lg">
-                <Calendar className="w-6 h-6 text-yellow-600" />
+              <div className="p-3 bg-amber-100 rounded-xl">
+                <Calendar className="w-6 h-6 text-amber-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Cold Contacts</p>
-                <p className="text-2xl font-bold text-blue-600">{cold.length}</p>
+                <p className="text-sm font-medium text-gray-600 mb-1">Cold Contacts</p>
+                <p className="text-3xl font-bold text-sky-600">{cold.length}</p>
+                <p className="text-xs text-gray-500 mt-1">Potential outreach</p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Mail className="w-6 h-6 text-blue-600" />
+              <div className="p-3 bg-sky-100 rounded-xl">
+                <Mail className="w-6 h-6 text-sky-600" />
               </div>
             </div>
           </div>
         </div>
 
         {outreach.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-            <Mail className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Outreach Data Found</h3>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Outreach Data Found</h3>
             <p className="text-gray-600 mb-4">
               We couldn't find any outreach or contact data in your spreadsheet.
             </p>
-            <p className="text-sm text-gray-500">
-              Available sheets: {data.sheetNames.join(', ')}
-            </p>
+            <div className="bg-gray-50 rounded-lg p-4 inline-block">
+              <p className="text-sm text-gray-600 mb-1">Available sheets:</p>
+              <p className="text-sm font-mono text-gray-800">{data.sheetNames.join(', ')}</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Pending Follow-ups */}
+            {/* Priority Follow-ups */}
             {pending.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border">
-                <div className="p-6 border-b">
-                  <h2 className="text-lg font-semibold text-gray-900">Pending Follow-ups</h2>
-                  <p className="text-sm text-gray-600">Contacts requiring immediate attention</p>
+              <div className="bg-white rounded-xl shadow-sm border border-amber-200">
+                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-amber-50 to-orange-50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-amber-100 rounded-lg">
+                      <Calendar className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">Priority Follow-ups</h2>
+                      <p className="text-sm text-gray-600">Contacts requiring immediate attention</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="p-6">
                   <div className="grid gap-4">
                     {pending.map((contact, index) => (
-                      <div key={index} className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
+                      <div key={index} className="border border-amber-200 rounded-lg p-4 bg-gradient-to-r from-amber-50 to-yellow-50 hover:shadow-sm transition-shadow">
                         <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h3 className="font-medium text-gray-900">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 mb-2">
                               {contact.Reporter || contact.Name || 'Unknown Contact'}
                             </h3>
-                            <div className="flex items-center text-sm text-gray-600 mt-1">
-                              <Building className="w-4 h-4 mr-1" />
-                              {contact.Outlet || 'Unknown Outlet'}
-                            </div>
-                            {contact.Type && (
-                              <div className="flex items-center text-sm text-gray-600 mt-1">
-                                <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                                {contact.Type}
+                            <div className="space-y-2">
+                              <div className="flex items-center text-sm text-gray-700">
+                                <Building className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                                <span className="truncate">{contact.Outlet || 'Unknown Outlet'}</span>
                               </div>
-                            )}
-                            {contact['Date / Deadline'] && (
-                              <div className="flex items-center text-sm text-gray-500 mt-1">
-                                <Calendar className="w-4 h-4 mr-1" />
-                                Deadline: {formatDate(contact['Date / Deadline'])}
+                              {contact.Type && (
+                                <div className="flex items-center text-sm text-gray-700">
+                                  <div className="w-2 h-2 bg-amber-500 rounded-full mr-2 flex-shrink-0"></div>
+                                  <span>{contact.Type}</span>
+                                </div>
+                              )}
+                              {contact['Date / Deadline'] && (
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <Calendar className="w-4 h-4 mr-2 text-gray-500 flex-shrink-0" />
+                                  <span>Deadline: {formatDate(contact['Date / Deadline'])}</span>
+                                </div>
+                              )}
+                            </div>
+                            {contact.Topic && (
+                              <div className="mt-3 p-2 bg-white rounded border">
+                                <p className="text-sm text-gray-700 leading-relaxed">{contact.Topic}</p>
                               </div>
                             )}
                           </div>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(contact.Status)}`}>
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ml-4 flex-shrink-0 ${getStatusColor(contact.Status)}`}>
                             {contact.Status || 'Unknown'}
                           </span>
                         </div>
-                        {contact.Topic && (
-                          <p className="text-sm text-gray-700 mt-3">{contact.Topic}</p>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -230,64 +249,93 @@ export default function OutreachPage() {
             )}
 
             {/* All Contacts Table */}
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">All Contacts</h2>
-                <p className="text-sm text-gray-600">Complete outreach contact database</p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-blue-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Users className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">All Contacts</h2>
+                    <p className="text-sm text-gray-600">Complete outreach contact database</p>
+                  </div>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Contact
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Outlet
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Date / Deadline
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                         Topic
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {outreach.map((contact, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
+                      <tr key={index} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {contact.Reporter || contact.Name || '-'}
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center">
+                                <span className="text-sm font-medium text-white">
+                                  {(contact.Reporter || contact.Name || 'U').charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-semibold text-gray-900">
+                                {contact.Reporter || contact.Name || '-'}
+                              </div>
+                              {contact.Phone && (
+                                <div className="text-sm text-gray-500 flex items-center">
+                                  <Phone className="w-3 h-3 mr-1" />
+                                  <span className="truncate max-w-xs">{contact.Phone}</span>
+                                </div>
+                              )}
+                              {contact.Type && (
+                                <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded mt-1 inline-block">
+                                  {contact.Type}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          {contact.Phone && (
-                            <div className="text-sm text-gray-500 flex items-center">
-                              <Phone className="w-3 h-3 mr-1" />
-                              {contact.Phone}
-                            </div>
-                          )}
-                          {contact.Type && (
-                            <div className="text-sm text-gray-500">
-                              {contact.Type}
-                            </div>
-                          )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {contact.Outlet || '-'}
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900">
+                            {contact.Outlet || '-'}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(contact.Status)}`}>
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(contact.Status)}`}>
                             {contact.Status || 'Unknown'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {formatDate(contact['Date / Deadline'])}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                          {contact.Topic || '-'}
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-700 max-w-xs">
+                            <div className="overflow-hidden" style={{ 
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              lineHeight: '1.5'
+                            }}>
+                              {contact.Topic || '-'}
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     ))}

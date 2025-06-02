@@ -67,10 +67,10 @@ export default function SpeakingOpportunitiesPage() {
   const [filteredOpportunities, setFilteredOpportunities] = useState<SpeakingOpportunity[]>([]);
   const [metrics, setMetrics] = useState<SpeakingMetrics | null>(null);
 
-  // Initialize filters with YTD as default
+  // Initialize filters with All as default
   const [filters, setFilters] = useState<FilterState>({
-    dateRange: 'ytd',
-    year: new Date().getFullYear().toString(),
+    dateRange: 'all',
+    year: undefined,
     tier: 'all',
     client: '',
     entryType: 'all',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, Filter, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface FilterState {
   dateRange: 'ytd' | 'quarter' | 'month' | 'all' | 'custom';
@@ -23,347 +23,259 @@ interface UniversalFiltersProps {
   showClientFilter?: boolean;
   showEntryTypeFilter?: boolean;
   showStatusFilter?: boolean;
-  compactMode?: boolean;
+  showSearchBar?: boolean;
 }
 
 export default function UniversalFilters({
   filters,
   onFiltersChange,
-  availableYears = [],
+  availableYears = ['2025', '2024'],
   showTierFilter = false,
   showClientFilter = false,
   showEntryTypeFilter = false,
   showStatusFilter = false,
-  compactMode = false
+  showSearchBar = false
 }: UniversalFiltersProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const [showQuarterExpanded, setShowQuarterExpanded] = useState(false);
+  const currentYear = new Date().getFullYear().toString();
+  const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3).toString() as '1' | '2' | '3' | '4';
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const handleFilterChange = (key: keyof FilterState, value: any) => {
-    const newFilters = { ...filters, [key]: value };
-    
-    // Reset dependent filters
-    if (key === 'dateRange') {
-      if (value !== 'quarter') newFilters.quarter = undefined;
-      if (value !== 'custom') {
-        newFilters.customStart = undefined;
-        newFilters.customEnd = undefined;
-      }
-    }
-    
-    onFiltersChange(newFilters);
-  };
+  // Check if any filters are active (for Reset button styling)
+  const hasActiveFilters = 
+    filters.dateRange !== 'all' || 
+    filters.year !== undefined || 
+    filters.quarter !== undefined ||
+    (filters.tier && filters.tier !== 'all') || 
+    (filters.client && filters.client.trim() !== '') ||
+    (filters.entryType && filters.entryType !== 'all') ||
+    (filters.status && filters.status !== 'all');
 
   const resetFilters = () => {
     onFiltersChange({
-      dateRange: 'ytd',
+      dateRange: 'all',
       year: undefined,
       quarter: undefined,
-      customStart: undefined,
-      customEnd: undefined,
       tier: 'all',
       client: '',
       entryType: 'all',
       status: 'all'
     });
+    setShowQuarterExpanded(false);
   };
 
-  const hasActiveFilters = () => {
-    return filters.dateRange !== 'ytd' || 
-           filters.year || 
-           filters.quarter || 
-           filters.tier !== 'all' || 
-           filters.client ||
-           filters.entryType !== 'all' ||
-           filters.status !== 'all';
+  const handleDateRangeChange = (range: FilterState['dateRange']) => {
+    const newFilters = { ...filters, dateRange: range };
+    
+    if (range === 'all') {
+      newFilters.year = undefined;
+      newFilters.quarter = undefined;
+    } else if (range === 'ytd') {
+      newFilters.year = currentYear;
+      newFilters.quarter = undefined;
+    } else if (range === 'quarter') {
+      newFilters.year = currentYear;
+      newFilters.quarter = currentQuarter;
+      setShowQuarterExpanded(true);
+    } else if (range === 'month') {
+      newFilters.year = currentYear;
+      newFilters.quarter = undefined;
+    }
+    
+    onFiltersChange(newFilters);
   };
 
-  if (!mounted) return null;
+  const handleYearChange = (year: string) => {
+    onFiltersChange({
+      ...filters,
+      year: year,
+      dateRange: 'ytd'
+    });
+  };
+
+  const handleQuarterChange = (quarter: '1' | '2' | '3' | '4') => {
+    onFiltersChange({
+      ...filters,
+      quarter: quarter,
+      dateRange: 'quarter',
+      year: filters.year || currentYear
+    });
+  };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg mb-6">
-      {/* Compact Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-6">
-          {/* Time Period - Horizontal Radio Buttons */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-gray-700">Period:</span>
-            <div className="flex gap-2">
-              {[
-                { value: 'ytd', label: 'YTD' },
-                { value: 'quarter', label: 'Quarter' },
-                { value: 'month', label: 'Month' },
-                { value: 'all', label: 'All' }
-              ].map(({ value, label }) => (
-                <label key={value} className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="dateRange"
-                    value={value}
-                    checked={filters.dateRange === value}
-                    onChange={(e) => handleFilterChange('dateRange', e.target.value)}
-                    className="sr-only"
-                  />
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
-                    filters.dateRange === value
-                      ? 'bg-blue-100 text-blue-700 border-blue-300'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                  }`}>
-                    {label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Year Selection - Only if years available */}
-          {availableYears.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Year:</span>
-              <div className="flex gap-1">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="year"
-                    value=""
-                    checked={!filters.year}
-                    onChange={() => handleFilterChange('year', undefined)}
-                    className="sr-only"
-                  />
-                  <span className={`px-2 py-1 text-xs rounded border transition-colors ${
-                    !filters.year
-                      ? 'bg-blue-100 text-blue-700 border-blue-300'
-                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                  }`}>
-                    All
-                  </span>
-                </label>
-                {availableYears.map(year => (
-                  <label key={year} className="flex items-center cursor-pointer">
-                    <input
-                      type="radio"
-                      name="year"
-                      value={year}
-                      checked={filters.year === year}
-                      onChange={(e) => handleFilterChange('year', e.target.value)}
-                      className="sr-only"
-                    />
-                    <span className={`px-2 py-1 text-xs rounded border transition-colors ${
-                      filters.year === year
-                        ? 'bg-blue-100 text-blue-700 border-blue-300'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                    }`}>
-                      {year}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Quarter Selection - Only when quarter is selected */}
-          {filters.dateRange === 'quarter' && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Q:</span>
-              <div className="flex gap-1">
-                {['1', '2', '3', '4'].map(q => (
-                  <label key={q} className="flex items-center cursor-pointer">
-                    <input
-                      type="radio"
-                      name="quarter"
-                      value={q}
-                      checked={filters.quarter === q}
-                      onChange={(e) => handleFilterChange('quarter', e.target.value)}
-                      className="sr-only"
-                    />
-                    <span className={`w-7 h-7 flex items-center justify-center text-xs rounded border transition-colors ${
-                      filters.quarter === q
-                        ? 'bg-blue-100 text-blue-700 border-blue-300'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                    }`}>
-                      {q}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Expand/Reset Controls */}
-        <div className="flex items-center gap-3">
-          {/* Additional Filters Toggle */}
-          {(showTierFilter || showClientFilter || showEntryTypeFilter || showStatusFilter) && (
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <Filter className="w-4 h-4" />
-              More
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-          )}
-
-          {/* Reset Button */}
+    <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+      <div className="space-y-4">
+        {/* Date Range Filters - Fixed Order: All, YTD, 2024, Quarter, Month */}
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-gray-700 mr-2">Time Period:</span>
+          
+          {/* All - FIRST */}
           <button
-            onClick={resetFilters}
-            disabled={!hasActiveFilters()}
-            className={`flex items-center gap-1 px-3 py-1 text-sm transition-colors ${
-              hasActiveFilters()
-                ? 'text-gray-600 hover:text-gray-800'
-                : 'text-gray-400 cursor-not-allowed'
+            onClick={() => handleDateRangeChange('all')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              filters.dateRange === 'all'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            <RotateCcw className="w-4 h-4" />
-            Reset
+            All
           </button>
+
+          {/* YTD - SECOND */}
+          <button
+            onClick={() => handleDateRangeChange('ytd')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              filters.dateRange === 'ytd'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            YTD
+          </button>
+
+          {/* 2024 - THIRD (hardcoded as requested) */}
+          <button
+            onClick={() => handleYearChange('2024')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              filters.year === '2024'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            2024
+          </button>
+
+          {/* Quarter - FOURTH */}
+          <div className="relative">
+            <button
+              onClick={() => handleDateRangeChange('quarter')}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
+                filters.dateRange === 'quarter'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Quarter
+              {showQuarterExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+            
+            {showQuarterExpanded && (
+              <div className="absolute top-full left-0 mt-1 bg-white border rounded-md shadow-lg z-10 p-2">
+                <div className="flex gap-1">
+                  {['1', '2', '3', '4'].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => handleQuarterChange(q as '1' | '2' | '3' | '4')}
+                      className={`px-2 py-1 text-xs font-medium rounded ${
+                        filters.quarter === q
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Q{q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Month - FIFTH */}
+          <button
+            onClick={() => handleDateRangeChange('month')}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+              filters.dateRange === 'month'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Month
+          </button>
+
+          {/* Reset - Separated */}
+          <div className="ml-4 pl-4 border-l border-gray-200">
+            <button
+              onClick={resetFilters}
+              disabled={!hasActiveFilters}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
+                hasActiveFilters
+                  ? 'bg-gray-600 text-white hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <RotateCcw className="w-3 h-3" />
+              Reset
+            </button>
+          </div>
+        </div>
+
+        {/* Always Visible Additional Filters */}
+        <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-gray-100">
+          {/* Tier Filter */}
+          {showTierFilter && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Tier:</span>
+              <select
+                value={filters.tier || 'all'}
+                onChange={(e) => onFiltersChange({ ...filters, tier: e.target.value as FilterState['tier'] })}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Tiers</option>
+                <option value="tier1">Tier 1</option>
+                <option value="tier2">Tier 2</option>
+                <option value="tier3">Tier 3</option>
+              </select>
+            </div>
+          )}
+
+          {/* Entry Type Filter */}
+          {showEntryTypeFilter && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Type:</span>
+              <select
+                value={filters.entryType || 'all'}
+                onChange={(e) => onFiltersChange({ ...filters, entryType: e.target.value as FilterState['entryType'] })}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Types</option>
+                <option value="agency">Agency</option>
+                <option value="client">Client</option>
+              </select>
+            </div>
+          )}
+
+          {/* Status Filter */}
+          {showStatusFilter && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Status:</span>
+              <select
+                value={filters.status || 'all'}
+                onChange={(e) => onFiltersChange({ ...filters, status: e.target.value as FilterState['status'] })}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Status</option>
+                <option value="won">Won</option>
+                <option value="submitted">Submitted</option>
+                <option value="upcoming">Upcoming</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          )}
+
+          {/* Search Bar */}
+          {(showClientFilter || showSearchBar) && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Search:</span>
+              <input
+                type="text"
+                placeholder="Search outlets, reporters, articles, clients..."
+                value={filters.client || ''}
+                onChange={(e) => onFiltersChange({ ...filters, client: e.target.value })}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
+              />
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Expanded Filters */}
-      {isExpanded && (showTierFilter || showClientFilter || showEntryTypeFilter || showStatusFilter) && (
-        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-          <div className="flex items-center gap-6 flex-wrap">
-            {/* Tier Filter */}
-            {showTierFilter && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Tier:</span>
-                <div className="flex gap-1">
-                  {[
-                    { value: 'all', label: 'All' },
-                    { value: 'tier1', label: 'T1' },
-                    { value: 'tier2', label: 'T2' },
-                    { value: 'tier3', label: 'T3' }
-                  ].map(({ value, label }) => (
-                    <label key={value} className="flex items-center cursor-pointer">
-                      <input
-                        type="radio"
-                        name="tier"
-                        value={value}
-                        checked={filters.tier === value}
-                        onChange={(e) => handleFilterChange('tier', e.target.value)}
-                        className="sr-only"
-                      />
-                      <span className={`px-2 py-1 text-xs rounded border transition-colors ${
-                        filters.tier === value
-                          ? 'bg-blue-100 text-blue-700 border-blue-300'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                      }`}>
-                        {label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Entry Type Filter */}
-            {showEntryTypeFilter && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Type:</span>
-                <div className="flex gap-1">
-                  {[
-                    { value: 'all', label: 'All' },
-                    { value: 'agency', label: 'Agency' },
-                    { value: 'client', label: 'Client' }
-                  ].map(({ value, label }) => (
-                    <label key={value} className="flex items-center cursor-pointer">
-                      <input
-                        type="radio"
-                        name="entryType"
-                        value={value}
-                        checked={filters.entryType === value}
-                        onChange={(e) => handleFilterChange('entryType', e.target.value)}
-                        className="sr-only"
-                      />
-                      <span className={`px-2 py-1 text-xs rounded border transition-colors ${
-                        filters.entryType === value
-                          ? 'bg-blue-100 text-blue-700 border-blue-300'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                      }`}>
-                        {label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Status Filter */}
-            {showStatusFilter && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Status:</span>
-                <div className="flex gap-1">
-                  {[
-                    { value: 'all', label: 'All' },
-                    { value: 'won', label: 'Won' },
-                    { value: 'submitted', label: 'Submitted' },
-                    { value: 'upcoming', label: 'Upcoming' }
-                  ].map(({ value, label }) => (
-                    <label key={value} className="flex items-center cursor-pointer">
-                      <input
-                        type="radio"
-                        name="status"
-                        value={value}
-                        checked={filters.status === value}
-                        onChange={(e) => handleFilterChange('status', e.target.value)}
-                        className="sr-only"
-                      />
-                      <span className={`px-2 py-1 text-xs rounded border transition-colors ${
-                        filters.status === value
-                          ? 'bg-blue-100 text-blue-700 border-blue-300'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                      }`}>
-                        {label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Search Filter */}
-            {showClientFilter && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Search:</span>
-                <input
-                  type="text"
-                  value={filters.client || ''}
-                  onChange={(e) => handleFilterChange('client', e.target.value)}
-                  placeholder="Search..."
-                  className="w-32 px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Custom Date Range - Only when custom is selected */}
-      {filters.dateRange === 'custom' && (
-        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">Custom Range:</span>
-            <input
-              type="date"
-              value={filters.customStart || ''}
-              onChange={(e) => handleFilterChange('customStart', e.target.value)}
-              className="px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <span className="text-gray-400">to</span>
-            <input
-              type="date"
-              value={filters.customEnd || ''}
-              onChange={(e) => handleFilterChange('customEnd', e.target.value)}
-              className="px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
