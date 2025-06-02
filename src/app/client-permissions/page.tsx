@@ -31,6 +31,7 @@ interface WorksheetData {
 interface ClientPermission {
   client: string;
   connectionStatus: string;
+  context: string;
   notes: string;
   clientLead: string;
   approvalProcess: string;
@@ -84,17 +85,24 @@ export default function ClientPermissionsPage() {
       return;
     }
 
-    // Use exact field mappings provided:
-    // A: Client, B: Have We Connected with their PR/comms team?, C: NOTES / UPDATES, 
-    // D: Client lead, E: Approval Process, F: Main point of contact, G: reintroduce?
+    // CORRECTED field mappings after Column C "context" was inserted:
+    // A: Client
+    // B: Have We Connected with their PR/comms team?  
+    // C: context (newly inserted)
+    // D: NOTES / UPDATES (was previously C, now shifted to D)
+    // E: Client lead (was previously D, now shifted to E)
+    // F: Approval Process (was previously E, now shifted to F)
+    // G: Main point of contact (was previously F, now shifted to G)
+    // H: reintroduce? (was previously G, now shifted to H)
     const processedPermissions = permissionsSheet.map((item, index) => ({
       client: String(item.Client || item.A || ''),
       connectionStatus: String(item['Have We Connected with their PR/comms team?'] || item.B || ''),
-      notes: String(item['NOTES / UPDATES'] || item.C || ''),
-      clientLead: String(item['Client lead'] || item.D || ''),
-      approvalProcess: String(item['Approval Process'] || item.E || ''),
-      mainContact: String(item['Main point of contact'] || item.F || ''),
-      reintroduce: String(item['reintroduce?'] || item.G || ''),
+      context: String(item.context || item.C || ''), // NEW: Column C context
+      notes: String(item['NOTES / UPDATES'] || item.D || ''), // SHIFTED: now Column D
+      clientLead: String(item['Client lead'] || item.E || ''), // SHIFTED: now Column E
+      approvalProcess: String(item['Approval Process'] || item.F || ''), // SHIFTED: now Column F
+      mainContact: String(item['Main point of contact'] || item.G || ''), // SHIFTED: now Column G
+      reintroduce: String(item['reintroduce?'] || item.H || ''), // SHIFTED: now Column H
       // Legacy fields for compatibility - use connectionStatus as status
       project: String(item.Project || ''),
       assetType: String(item['Asset Type'] || ''),
@@ -103,7 +111,7 @@ export default function ClientPermissionsPage() {
       dateApproved: String(item['Date Approved'] || ''),
       expiryDate: String(item['Expiry Date'] || ''),
       usage: String(item.Usage || ''),
-      contact: String(item.Contact || item['Main point of contact'] || item.F || ''),
+      contact: String(item.Contact || item['Main point of contact'] || item.G || ''),
       permissionType: String(item['Permission Type'] || ''),
       id: index + 1,
       ...item
@@ -112,7 +120,7 @@ export default function ClientPermissionsPage() {
     setPermissions(processedPermissions);
   }, []);
 
-  // Show all permissions since this page doesn't have filters - no useMemo needed
+  // Show all permissions since this page doesn't have filters
   const filteredPermissions = permissions;
 
   // Calculate metrics whenever filtered permissions change
@@ -426,6 +434,9 @@ export default function ClientPermissionsPage() {
                       Client / Contact
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Context
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Connection Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -454,6 +465,11 @@ export default function ClientPermissionsPage() {
                             {permission.clientLead && (
                               <div className="text-xs text-gray-400">Lead: {String(permission.clientLead)}</div>
                             )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 max-w-xs">
+                            {String(permission.context || '-')}
                           </div>
                         </td>
                         <td className="px-6 py-4">
