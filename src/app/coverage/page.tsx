@@ -442,24 +442,27 @@ export default function CoveragePage() {
         />
 
         {/* Tab Navigation */}
-        <div className="flex border-b mb-6">
-          {[
-            { key: 'overview', label: 'Overview' },
-            { key: 'details', label: 'Coverage Details' },
-            { key: 'methodology', label: 'Methodology' }
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === tab.key
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="bg-white rounded-lg shadow-sm border mb-6 p-1">
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            {[
+              { key: 'overview', label: 'Overview', icon: '📊' },
+              { key: 'details', label: 'Coverage Details', icon: '📋' },
+              { key: 'methodology', label: 'Methodology', icon: '🔬' }
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-semibold text-sm rounded-md transition-all duration-200 ${
+                  activeTab === tab.key
+                    ? 'bg-white text-blue-700 shadow-md border border-blue-200 ring-2 ring-blue-100'
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                }`}
+              >
+                <span className="text-lg">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Tab Content */}

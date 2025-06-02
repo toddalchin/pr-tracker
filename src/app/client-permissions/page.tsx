@@ -63,48 +63,95 @@ export default function ClientPermissionsPage() {
   const [permissions, setPermissions] = useState<ClientPermission[]>([]);
   const [metrics, setMetrics] = useState<PermissionMetrics | null>(null);
 
-  // Initialize with YTD filtering
-  const currentYear = new Date().getFullYear();
-  
   const processPermissionsData = useCallback((data: WorksheetData) => {
-    const permissionsSheet = data.sheets['Client Permissions'] || 
-                            data.sheets['Permissions'] || 
-                            data.sheets['Permission Requests'] || 
-                            data.sheets['Client Permission Requests'] || 
-                            data.sheets['Usage Rights'] || [];
+    console.log('Available sheet names:', data.sheetNames);
+    console.log('Available sheets:', Object.keys(data.sheets));
+    
+    // Try multiple possible sheet names for permissions data
+    const possibleSheetNames = [
+      'Client Permissions', 
+      'Permissions', 
+      'Permission Requests', 
+      'Client Permission Requests', 
+      'Usage Rights',
+      'Client Permissions DB',
+      'Permissions DB',
+      'Rights',
+      'Copyright',
+      'IP Rights'
+    ];
+    
+    let permissionsSheet: any[] = [];
+    let foundSheetName = '';
+    
+    for (const sheetName of possibleSheetNames) {
+      if (data.sheets[sheetName] && data.sheets[sheetName].length > 0) {
+        permissionsSheet = data.sheets[sheetName];
+        foundSheetName = sheetName;
+        console.log(`Found permissions data in sheet: "${foundSheetName}" with ${permissionsSheet.length} rows`);
+        break;
+      }
+    }
+    
+    // If no specific permissions sheet found, look for any sheet that has permission-like columns
+    if (permissionsSheet.length === 0) {
+      console.log('No specific permissions sheet found, checking all sheets for permission-like data...');
+      
+      for (const [sheetName, sheetData] of Object.entries(data.sheets)) {
+        if (sheetData.length > 0) {
+          const firstRow = sheetData[0];
+          const columnNames = Object.keys(firstRow).map(k => k.toLowerCase());
+          
+          // Check if this sheet has permission-related columns
+          const hasPermissionColumns = columnNames.some(col => 
+            col.includes('permission') || 
+            col.includes('approval') || 
+            col.includes('rights') || 
+            col.includes('usage') ||
+            col.includes('asset') ||
+            col.includes('expiry')
+          );
+          
+          if (hasPermissionColumns) {
+            permissionsSheet = sheetData;
+            foundSheetName = sheetName;
+            console.log(`Found potential permissions data in sheet: "${foundSheetName}" with permission-like columns:`, columnNames);
+            break;
+          }
+        }
+      }
+    }
+    
+    console.log(`Processing ${permissionsSheet.length} permission items from sheet: "${foundSheetName}"`);
+    
+    if (permissionsSheet.length > 0) {
+      console.log('Sample permission item:', permissionsSheet[0]);
+    }
     
     const processedPermissions = permissionsSheet.map((item, index) => ({
-      client: String(item.Client || item['Client Name'] || ''),
-      project: String(item.Project || item['Project Name'] || item.Campaign || ''),
-      assetType: String(item['Asset Type'] || item.Type || item.Asset || ''),
-      status: String(item.Status || item['Approval Status'] || ''),
-      dateRequested: String(item['Date Requested'] || item['Request Date'] || item.Date || ''),
-      dateApproved: String(item['Date Approved'] || item['Approval Date'] || ''),
-      expiryDate: String(item['Expiry Date'] || item.Expiry || item['Valid Until'] || ''),
-      usage: String(item.Usage || item['Usage Rights'] || item.Rights || ''),
-      notes: String(item.Notes || item.Comments || ''),
-      contact: String(item.Contact || item['Contact Person'] || ''),
-      permissionType: String(item['Permission Type'] || item.Category || ''),
+      client: String(item.Client || item['Client Name'] || item.Organization || ''),
+      project: String(item.Project || item['Project Name'] || item.Campaign || item.Event || ''),
+      assetType: String(item['Asset Type'] || item.Type || item.Asset || item.Media || ''),
+      status: String(item.Status || item['Approval Status'] || item.State || ''),
+      dateRequested: String(item['Date Requested'] || item['Request Date'] || item.Date || item.Created || ''),
+      dateApproved: String(item['Date Approved'] || item['Approval Date'] || item.Approved || ''),
+      expiryDate: String(item['Expiry Date'] || item.Expiry || item['Valid Until'] || item.Expires || ''),
+      usage: String(item.Usage || item['Usage Rights'] || item.Rights || item.Terms || ''),
+      notes: String(item.Notes || item.Comments || item.Description || ''),
+      contact: String(item.Contact || item['Contact Person'] || item.Owner || ''),
+      permissionType: String(item['Permission Type'] || item.Category || item.Kind || ''),
       id: index + 1,
       ...item
     }));
     
+    console.log(`Processed ${processedPermissions.length} permissions`);
+    console.log('Sample processed permission:', processedPermissions[0]);
+    
     setPermissions(processedPermissions);
   }, []);
 
-  // Filter permissions to YTD by default
-  const filteredPermissions = useMemo(() => {
-    return permissions.filter(permission => {
-      const primaryDate = permission.dateRequested || permission.dateApproved;
-      if (!primaryDate) return false;
-      
-      const permissionDate = new Date(primaryDate);
-      const permissionYear = permissionDate.getFullYear();
-      
-      // Default to YTD filtering
-      return permissionYear === currentYear;
-    });
-  }, [permissions, currentYear]);
+  // Show all permissions by default (no filtering since this page has no filters)
+  const filteredPermissions = permissions;
 
   // Calculate metrics whenever filtered permissions change
   useEffect(() => {
@@ -286,7 +333,7 @@ export default function ClientPermissionsPage() {
   };
 
   const getTimeRangeLabel = () => {
-    return `${currentYear} YTD`;
+    return `${new Date().getFullYear()} YTD`;
   };
 
   if (loading) return <LoadingState />;
@@ -510,9 +557,24 @@ export default function ClientPermissionsPage() {
             <div className="p-8 text-center">
               <Shield className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500 mb-2">No permissions found</p>
-              <p className="text-sm text-gray-400">
-                Try adjusting your filters or check if permission data is available
+              <p className="text-sm text-gray-400 mb-4">
+                No permission data was found in the available sheets
               </p>
+              {data && (
+                <div className="bg-gray-50 rounded-lg p-4 text-left max-w-2xl mx-auto">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Available sheets:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                    {data.sheetNames.map((name, index) => (
+                      <div key={index} className="bg-white px-2 py-1 rounded border">
+                        {name}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Looking for sheets containing: permissions, rights, approval, usage, asset, or expiry data
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
