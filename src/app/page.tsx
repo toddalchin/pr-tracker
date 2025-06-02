@@ -398,7 +398,6 @@ export default function DashboardPage() {
           filters={filters}
           onFiltersChange={setFilters}
           availableYears={['2025', '2024']}
-          compactMode={true}
         />
 
         {/* Key Metrics Grid */}
