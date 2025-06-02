@@ -112,13 +112,6 @@ export default function OutreachPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Media Relations
-          </h1>
-          <p className="text-gray-600">Manage your media contacts and relationships</p>
-        </div>
-
         {/* Enhanced Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">

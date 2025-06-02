@@ -42,14 +42,6 @@ export default function WorksheetsPage() {
       
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-              <Database className="w-8 h-8 text-blue-600" />
-              Worksheet Data Explorer
-            </h1>
-            <p className="text-gray-600">Browse all available data sheets and their contents</p>
-          </div>
-          
           <div className="space-y-4">
             {Object.entries(data.sheets).map(([sheetName, sheetData]) => {
               const isExpanded = expandedSheets[sheetName];

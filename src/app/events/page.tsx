@@ -86,20 +86,6 @@ export default function EventsPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Events & Speaking Engagements
-          </h1>
-          <p className="text-gray-600">
-            Track upcoming and past events, conferences, and speaking opportunities
-          </p>
-          {sheetName && (
-            <p className="text-sm text-gray-500 mt-2">
-              📊 Data from: {sheetName} ({events.length} events)
-            </p>
-          )}
-        </div>
-
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
