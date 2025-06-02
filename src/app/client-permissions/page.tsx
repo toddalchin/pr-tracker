@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from '@/components/Header';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
-import UniversalFilters, { FilterState, applyDateFilter } from '@/components/UniversalFilters';
 import { 
   Shield, 
   CheckCircle, 
@@ -62,19 +61,11 @@ export default function ClientPermissionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<ClientPermission[]>([]);
-  const [filteredPermissions, setFilteredPermissions] = useState<ClientPermission[]>([]);
   const [metrics, setMetrics] = useState<PermissionMetrics | null>(null);
 
-  // Initialize filters with YTD as default
-  const [filters, setFilters] = useState<FilterState>({
-    dateRange: 'ytd',
-    year: new Date().getFullYear().toString(),
-    tier: 'all',
-    client: '',
-    entryType: 'all',
-    status: 'all'
-  });
-
+  // Initialize with YTD filtering
+  const currentYear = new Date().getFullYear();
+  
   const processPermissionsData = useCallback((data: WorksheetData) => {
     const permissionsSheet = data.sheets['Client Permissions'] || [];
     
@@ -97,56 +88,19 @@ export default function ClientPermissionsPage() {
     setPermissions(processedPermissions);
   }, []);
 
-  // Apply filters whenever permissions or filters change
-  useEffect(() => {
-    let filtered = [...permissions];
-
-    // Apply date filtering (use dateRequested as primary date field)
-    if (filters.dateRange !== 'all') {
-      filtered = filtered.filter(permission => {
-        const primaryDate = permission.dateRequested || permission.dateApproved;
-        if (!primaryDate) return false;
-        
-        const dateFiltered = applyDateFilter([{ Date: primaryDate }], filters, 'Date');
-        return dateFiltered.length > 0;
-      });
-    }
-
-    // Apply status filter
-    if (filters.status !== 'all') {
-      filtered = filtered.filter(permission => {
-        const status = permission.status.toLowerCase();
-        switch (filters.status) {
-          case 'won': // Map to 'approved'
-            return status.includes('approved') || status.includes('granted') || status.includes('yes');
-          case 'submitted': // Map to 'pending'
-            return status.includes('pending') || status.includes('review') || status.includes('waiting');
-          case 'closed': // Map to 'denied'
-            return status.includes('denied') || status.includes('rejected') || status.includes('no');
-          case 'upcoming': // Map to 'expiring soon'
-            if (!permission.expiryDate) return false;
-            const expiryDate = new Date(permission.expiryDate);
-            const now = new Date();
-            const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-            return !isNaN(expiryDate.getTime()) && expiryDate >= now && expiryDate <= thirtyDaysFromNow;
-          default:
-            return true;
-        }
-      });
-    }
-
-    // Apply client filter
-    if (filters.client && filters.client.trim() !== '') {
-      const searchTerm = filters.client.toLowerCase();
-      filtered = filtered.filter(permission => 
-        permission.client.toLowerCase().includes(searchTerm) ||
-        permission.project.toLowerCase().includes(searchTerm) ||
-        permission.assetType.toLowerCase().includes(searchTerm)
-      );
-    }
-
-    setFilteredPermissions(filtered);
-  }, [permissions, filters]);
+  // Filter permissions to YTD by default
+  const filteredPermissions = useMemo(() => {
+    return permissions.filter(permission => {
+      const primaryDate = permission.dateRequested || permission.dateApproved;
+      if (!primaryDate) return false;
+      
+      const permissionDate = new Date(primaryDate);
+      const permissionYear = permissionDate.getFullYear();
+      
+      // Default to YTD filtering
+      return permissionYear === currentYear;
+    });
+  }, [permissions, currentYear]);
 
   // Calculate metrics whenever filtered permissions change
   useEffect(() => {
@@ -328,14 +282,7 @@ export default function ClientPermissionsPage() {
   };
 
   const getTimeRangeLabel = () => {
-    switch (filters.dateRange) {
-      case 'ytd': return `${filters.year || new Date().getFullYear()} YTD`;
-      case 'quarter': return `Q${filters.quarter || Math.ceil((new Date().getMonth() + 1) / 3)} ${filters.year || new Date().getFullYear()}`;
-      case 'month': return 'This Month';
-      case 'all': return 'All Time';
-      case 'custom': return 'Custom Period';
-      default: return `${filters.year || new Date().getFullYear()} YTD`;
-    }
+    return `${currentYear} YTD`;
   };
 
   if (loading) return <LoadingState />;
@@ -347,26 +294,14 @@ export default function ClientPermissionsPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">
             Client Permissions
           </h1>
-          <p className="text-gray-600">
-            Track client permissions, usage rights, and approval status for {metrics.timeRangeLabel}
-          </p>
         </div>
 
-        {/* Universal Filters */}
-        <UniversalFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          availableYears={getAvailableYears()}
-          showStatusFilter={true}
-          showClientFilter={true}
-        />
-
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
@@ -467,7 +402,7 @@ export default function ClientPermissionsPage() {
           <div className="p-6 border-b">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                Permission Requests ({filteredPermissions.length})
+                {filteredPermissions.length} requests
               </h2>
               <div className="text-sm text-gray-500">
                 {metrics.timeRangeLabel}

@@ -387,13 +387,10 @@ export default function DashboardPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">
             Dashboard
           </h1>
-          <p className="text-gray-600">
-            Performance overview and recent activity for {metrics.timeRangeLabel}
-          </p>
         </div>
 
         {/* Universal Filters */}

@@ -43,16 +43,28 @@ export default function UniversalFilters({
     setMounted(true);
   }, []);
 
-  if (!mounted) return null;
-
-  const updateFilters = (updates: Partial<FilterState>) => {
-    onFiltersChange({ ...filters, ...updates });
+  const handleFilterChange = (key: keyof FilterState, value: any) => {
+    const newFilters = { ...filters, [key]: value };
+    
+    // Reset dependent filters
+    if (key === 'dateRange') {
+      if (value !== 'quarter') newFilters.quarter = undefined;
+      if (value !== 'custom') {
+        newFilters.customStart = undefined;
+        newFilters.customEnd = undefined;
+      }
+    }
+    
+    onFiltersChange(newFilters);
   };
 
   const resetFilters = () => {
     onFiltersChange({
       dateRange: 'ytd',
-      year: new Date().getFullYear().toString(),
+      year: undefined,
+      quarter: undefined,
+      customStart: undefined,
+      customEnd: undefined,
       tier: 'all',
       client: '',
       entryType: 'all',
@@ -62,204 +74,296 @@ export default function UniversalFilters({
 
   const hasActiveFilters = () => {
     return filters.dateRange !== 'ytd' || 
+           filters.year || 
+           filters.quarter || 
            filters.tier !== 'all' || 
-           (filters.client && filters.client.trim() !== '') ||
+           filters.client ||
            filters.entryType !== 'all' ||
            filters.status !== 'all';
   };
 
-  const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3).toString() as '1' | '2' | '3' | '4';
-  const currentYear = new Date().getFullYear().toString();
+  if (!mounted) return null;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border mb-6">
-      {/* Mobile Toggle Header */}
-      <div className="md:hidden p-4 border-b">
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center justify-between w-full text-left"
-        >
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <span className="font-medium text-gray-700">Filters</span>
-            {hasActiveFilters() && (
-              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-                Active
-              </span>
-            )}
-          </div>
-          {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-gray-400" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          )}
-        </button>
-      </div>
-
-      {/* Filter Content */}
-      <div className={`${!isExpanded ? 'hidden md:block' : ''} p-4 md:p-6`}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {/* Date Range Filter */}
-          <div className="col-span-1 md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              Time Period
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                value={filters.dateRange}
-                onChange={(e) => updateFilters({ 
-                  dateRange: e.target.value as FilterState['dateRange'],
-                  year: currentYear,
-                  quarter: currentQuarter
-                })}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="ytd">Year to Date</option>
-                <option value="quarter">Quarter</option>
-                <option value="month">This Month</option>
-                <option value="all">All Time</option>
-                <option value="custom">Custom Range</option>
-              </select>
-
-              {filters.dateRange !== 'all' && filters.dateRange !== 'month' && (
-                <select
-                  value={filters.year || currentYear}
-                  onChange={(e) => updateFilters({ year: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  {availableYears.length > 0 ? (
-                    availableYears.map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))
-                  ) : (
-                    [2024, 2025].map(year => (
-                      <option key={year} value={year.toString()}>{year}</option>
-                    ))
-                  )}
-                </select>
-              )}
+    <div className="bg-white border border-gray-200 rounded-lg mb-6">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-6">
+          {/* Time Period - Horizontal Radio Buttons */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">Period:</span>
+            <div className="flex gap-2">
+              {[
+                { value: 'ytd', label: 'YTD' },
+                { value: 'quarter', label: 'Quarter' },
+                { value: 'month', label: 'Month' },
+                { value: 'all', label: 'All' }
+              ].map(({ value, label }) => (
+                <label key={value} className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="dateRange"
+                    value={value}
+                    checked={filters.dateRange === value}
+                    onChange={(e) => handleFilterChange('dateRange', e.target.value)}
+                    className="sr-only"
+                  />
+                  <span className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+                    filters.dateRange === value
+                      ? 'bg-blue-100 text-blue-700 border-blue-300'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                  }`}>
+                    {label}
+                  </span>
+                </label>
+              ))}
             </div>
-
-            {/* Quarter Selection */}
-            {filters.dateRange === 'quarter' && (
-              <div className="mt-2">
-                <select
-                  value={filters.quarter || currentQuarter}
-                  onChange={(e) => updateFilters({ quarter: e.target.value as FilterState['quarter'] })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="1">Q1 (Jan-Mar)</option>
-                  <option value="2">Q2 (Apr-Jun)</option>
-                  <option value="3">Q3 (Jul-Sep)</option>
-                  <option value="4">Q4 (Oct-Dec)</option>
-                </select>
-              </div>
-            )}
-
-            {/* Custom Date Range */}
-            {filters.dateRange === 'custom' && (
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <input
-                  type="date"
-                  value={filters.customStart || ''}
-                  onChange={(e) => updateFilters({ customStart: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Start Date"
-                />
-                <input
-                  type="date"
-                  value={filters.customEnd || ''}
-                  onChange={(e) => updateFilters({ customEnd: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="End Date"
-                />
-              </div>
-            )}
           </div>
 
-          {/* Status Filter */}
-          {showStatusFilter && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-              <select
-                value={filters.status || 'all'}
-                onChange={(e) => updateFilters({ status: e.target.value as FilterState['status'] })}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Statuses</option>
-                <option value="won">Approved/Won</option>
-                <option value="submitted">Pending/Submitted</option>
-                <option value="upcoming">Upcoming/Scheduled</option>
-                <option value="closed">Closed/Draft</option>
-              </select>
+          {/* Year Selection - Only if years available */}
+          {availableYears.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Year:</span>
+              <div className="flex gap-1">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="year"
+                    value=""
+                    checked={!filters.year}
+                    onChange={() => handleFilterChange('year', undefined)}
+                    className="sr-only"
+                  />
+                  <span className={`px-2 py-1 text-xs rounded border transition-colors ${
+                    !filters.year
+                      ? 'bg-blue-100 text-blue-700 border-blue-300'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                  }`}>
+                    All
+                  </span>
+                </label>
+                {availableYears.map(year => (
+                  <label key={year} className="flex items-center cursor-pointer">
+                    <input
+                      type="radio"
+                      name="year"
+                      value={year}
+                      checked={filters.year === year}
+                      onChange={(e) => handleFilterChange('year', e.target.value)}
+                      className="sr-only"
+                    />
+                    <span className={`px-2 py-1 text-xs rounded border transition-colors ${
+                      filters.year === year
+                        ? 'bg-blue-100 text-blue-700 border-blue-300'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}>
+                      {year}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Tier Filter */}
-          {showTierFilter && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Publication Tier</label>
-              <select
-                value={filters.tier || 'all'}
-                onChange={(e) => updateFilters({ tier: e.target.value as FilterState['tier'] })}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Tiers</option>
-                <option value="tier1">Tier 1 (Major)</option>
-                <option value="tier2">Tier 2 (Regional)</option>
-                <option value="tier3">Tier 3 (Niche)</option>
-              </select>
+          {/* Quarter Selection - Only when quarter is selected */}
+          {filters.dateRange === 'quarter' && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Q:</span>
+              <div className="flex gap-1">
+                {['1', '2', '3', '4'].map(q => (
+                  <label key={q} className="flex items-center cursor-pointer">
+                    <input
+                      type="radio"
+                      name="quarter"
+                      value={q}
+                      checked={filters.quarter === q}
+                      onChange={(e) => handleFilterChange('quarter', e.target.value)}
+                      className="sr-only"
+                    />
+                    <span className={`w-7 h-7 flex items-center justify-center text-xs rounded border transition-colors ${
+                      filters.quarter === q
+                        ? 'bg-blue-100 text-blue-700 border-blue-300'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}>
+                      {q}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
+        </div>
 
-          {/* Entry Type Filter */}
-          {showEntryTypeFilter && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Entry Type</label>
-              <select
-                value={filters.entryType || 'all'}
-                onChange={(e) => updateFilters({ entryType: e.target.value as FilterState['entryType'] })}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Types</option>
-                <option value="agency">Agency Entries</option>
-                <option value="client">Client Entries</option>
-              </select>
-            </div>
-          )}
-
-          {/* Search Filter */}
-          {showClientFilter && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-              <input
-                type="text"
-                value={filters.client || ''}
-                onChange={(e) => updateFilters({ client: e.target.value })}
-                placeholder="Search by name, client, topic..."
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+        {/* Expand/Reset Controls */}
+        <div className="flex items-center gap-3">
+          {/* Additional Filters Toggle */}
+          {(showTierFilter || showClientFilter || showEntryTypeFilter || showStatusFilter) && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="flex items-center gap-1 px-3 py-1 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <Filter className="w-4 h-4" />
+              More
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
           )}
 
           {/* Reset Button */}
-          <div className="flex items-end">
-            <button
-              onClick={resetFilters}
-              disabled={!hasActiveFilters()}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                hasActiveFilters()
-                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
-                  : 'bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200'
-              }`}
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span className="hidden sm:inline">Reset</span>
-            </button>
-          </div>
+          <button
+            onClick={resetFilters}
+            disabled={!hasActiveFilters()}
+            className={`flex items-center gap-1 px-3 py-1 text-sm transition-colors ${
+              hasActiveFilters()
+                ? 'text-gray-600 hover:text-gray-800'
+                : 'text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset
+          </button>
         </div>
       </div>
+
+      {/* Expanded Filters */}
+      {isExpanded && (showTierFilter || showClientFilter || showEntryTypeFilter || showStatusFilter) && (
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+          <div className="flex items-center gap-6 flex-wrap">
+            {/* Tier Filter */}
+            {showTierFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Tier:</span>
+                <div className="flex gap-1">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'tier1', label: 'T1' },
+                    { value: 'tier2', label: 'T2' },
+                    { value: 'tier3', label: 'T3' }
+                  ].map(({ value, label }) => (
+                    <label key={value} className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="tier"
+                        value={value}
+                        checked={filters.tier === value}
+                        onChange={(e) => handleFilterChange('tier', e.target.value)}
+                        className="sr-only"
+                      />
+                      <span className={`px-2 py-1 text-xs rounded border transition-colors ${
+                        filters.tier === value
+                          ? 'bg-blue-100 text-blue-700 border-blue-300'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}>
+                        {label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Entry Type Filter */}
+            {showEntryTypeFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Type:</span>
+                <div className="flex gap-1">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'agency', label: 'Agency' },
+                    { value: 'client', label: 'Client' }
+                  ].map(({ value, label }) => (
+                    <label key={value} className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="entryType"
+                        value={value}
+                        checked={filters.entryType === value}
+                        onChange={(e) => handleFilterChange('entryType', e.target.value)}
+                        className="sr-only"
+                      />
+                      <span className={`px-2 py-1 text-xs rounded border transition-colors ${
+                        filters.entryType === value
+                          ? 'bg-blue-100 text-blue-700 border-blue-300'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}>
+                        {label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Status Filter */}
+            {showStatusFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Status:</span>
+                <div className="flex gap-1">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'won', label: 'Won' },
+                    { value: 'submitted', label: 'Submitted' },
+                    { value: 'upcoming', label: 'Upcoming' }
+                  ].map(({ value, label }) => (
+                    <label key={value} className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="status"
+                        value={value}
+                        checked={filters.status === value}
+                        onChange={(e) => handleFilterChange('status', e.target.value)}
+                        className="sr-only"
+                      />
+                      <span className={`px-2 py-1 text-xs rounded border transition-colors ${
+                        filters.status === value
+                          ? 'bg-blue-100 text-blue-700 border-blue-300'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      }`}>
+                        {label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Search Filter */}
+            {showClientFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Search:</span>
+                <input
+                  type="text"
+                  value={filters.client || ''}
+                  onChange={(e) => handleFilterChange('client', e.target.value)}
+                  placeholder="Search..."
+                  className="w-32 px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Custom Date Range - Only when custom is selected */}
+      {filters.dateRange === 'custom' && (
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">Custom Range:</span>
+            <input
+              type="date"
+              value={filters.customStart || ''}
+              onChange={(e) => handleFilterChange('customStart', e.target.value)}
+              className="px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <span className="text-gray-400">to</span>
+            <input
+              type="date"
+              value={filters.customEnd || ''}
+              onChange={(e) => handleFilterChange('customEnd', e.target.value)}
+              className="px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

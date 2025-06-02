@@ -342,13 +342,10 @@ export default function SpeakingOpportunitiesPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Speaking Opportunities
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Speaking
           </h1>
-          <p className="text-gray-600">
-            Track speaking engagements, conferences, and event opportunities for {metrics.timeRangeLabel}
-          </p>
         </div>
 
         {/* Universal Filters */}
@@ -462,7 +459,7 @@ export default function SpeakingOpportunitiesPage() {
           <div className="p-6 border-b">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                Speaking Opportunities ({filteredOpportunities.length})
+                {filteredOpportunities.length} opportunities
               </h2>
               <div className="text-sm text-gray-500">
                 {metrics.timeRangeLabel}

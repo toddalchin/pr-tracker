@@ -295,13 +295,10 @@ export default function AwardsPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Awards Tracker
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Awards
           </h1>
-          <p className="text-gray-600">
-            Track award submissions, wins, and upcoming opportunities for {getTimeRangeLabel()}
-          </p>
         </div>
 
         {/* Universal Filters */}
@@ -394,7 +391,7 @@ export default function AwardsPage() {
           <div className="p-6 border-b">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">
-                Award Entries ({filteredAwards.length})
+                {filteredAwards.length} entries
               </h2>
               <div className="text-sm text-gray-500">
                 {getTimeRangeLabel()}

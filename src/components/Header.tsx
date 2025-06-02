@@ -55,9 +55,6 @@ export default function Header() {
           <Link href="/awards" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Awards
           </Link>
-          <Link href="/client-permissions" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
-            Permissions
-          </Link>
           <Link href="/speaking" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Speaking
           </Link>
@@ -66,6 +63,9 @@ export default function Header() {
           </Link>
           <Link href="/outreach" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Outreach
+          </Link>
+          <Link href="/client-permissions" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
+            Permissions
           </Link>
           <Link href="/worksheets" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10 text-sm">
             All Data
@@ -98,13 +98,6 @@ export default function Header() {
             🏆 Awards
           </Link>
           <Link 
-            href="/client-permissions" 
-            className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
-            onClick={() => setIsMenuOpen(false)}
-          >
-            🔐 Client Permissions
-          </Link>
-          <Link 
             href="/speaking" 
             className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
             onClick={() => setIsMenuOpen(false)}
@@ -124,6 +117,13 @@ export default function Header() {
             onClick={() => setIsMenuOpen(false)}
           >
             📧 Outreach
+          </Link>
+          <Link 
+            href="/client-permissions" 
+            className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            🔐 Client Permissions
           </Link>
           <Link 
             href="/worksheets" 

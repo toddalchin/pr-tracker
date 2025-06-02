@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Header from '@/components/Header';
 import { getPublicationInfo, getReachMethodologyExplanation, getDataQualityStats } from '@/lib/publicationData';
 import { cleanText, formatDate, formatNumber } from '@/lib/dataUtils';
+import UniversalFilters from '@/components/UniversalFilters';
 
 interface CoverageItem {
   Date: string;
@@ -398,104 +399,26 @@ export default function CoveragePage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Filter Coverage</h2>
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Year Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Year:</span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setFilters(prev => ({ ...prev, year: 'all' }))}
-                  className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                    filters.year === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  All
-                </button>
-                {availableYears.map(year => (
-                  <button
-                    key={year}
-                    onClick={() => setFilters(prev => ({ ...prev, year }))}
-                    className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                      filters.year === year
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {year}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Quarter Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Quarter:</span>
-              <div className="flex gap-1">
-                {['all', 'Q1', 'Q2', 'Q3', 'Q4'].map(quarter => (
-                  <button
-                    key={quarter}
-                    onClick={() => setFilters(prev => ({ ...prev, quarter }))}
-                    className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                      filters.quarter === quarter
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {quarter === 'all' ? 'All' : quarter}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Tier Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Tier:</span>
-              <div className="flex gap-1">
-                {['all', 'tier1', 'tier2', 'tier3', 'unknown'].map(tier => (
-                  <button
-                    key={tier}
-                    onClick={() => setFilters(prev => ({ ...prev, tier }))}
-                    className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                      filters.tier === tier
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {tier === 'all' ? 'All' : tier === 'unknown' ? 'Unknown' : tier.replace('tier', 'Tier ')}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Enhanced Keyword Search */}
-            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <span className="text-sm font-medium text-gray-700">Search:</span>
-              <input
-                type="text"
-                placeholder="Search..."
-                value={filters.client}
-                onChange={(e) => setFilters(prev => ({ ...prev, client: e.target.value }))}
-                className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Reset Button */}
-            <button
-              onClick={resetFilters}
-              className={`px-4 py-1 text-sm border rounded-full transition-colors ${
-                hasActiveFilters
-                  ? 'text-amber-800 border-amber-300 bg-amber-50 hover:bg-amber-100'
-                  : 'text-gray-600 border-gray-300 hover:text-gray-800 hover:bg-gray-50'
-              }`}
-            >
-              Reset
-            </button>
-          </div>
-        </div>
+        <UniversalFilters
+          filters={{
+            dateRange: filters.year === 'all' ? 'all' : 'ytd',
+            year: filters.year !== 'all' ? filters.year : undefined,
+            quarter: filters.quarter !== 'all' ? filters.quarter as '1' | '2' | '3' | '4' : undefined,
+            tier: filters.tier as 'all' | 'tier1' | 'tier2' | 'tier3',
+            client: filters.client
+          }}
+          onFiltersChange={(newFilters) => {
+            setFilters({
+              year: newFilters.year || 'all',
+              quarter: newFilters.quarter || 'all',
+              tier: newFilters.tier || 'all',
+              client: newFilters.client || ''
+            });
+          }}
+          availableYears={availableYears}
+          showTierFilter={true}
+          showClientFilter={true}
+        />
 
         {/* Tab Navigation */}
         <div className="flex border-b mb-6">
