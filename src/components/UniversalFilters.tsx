@@ -101,6 +101,13 @@ export default function UniversalFilters({
     });
   };
 
+  const handleFilterChange = (field: keyof FilterState, value: string) => {
+    onFiltersChange({
+      ...filters,
+      [field]: value
+    });
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
       <div className="space-y-4">
@@ -191,90 +198,123 @@ export default function UniversalFilters({
             Month
           </button>
 
-          {/* Reset - Separated */}
-          <div className="ml-4 pl-4 border-l border-gray-200">
+          {/* Reset Button - Less dominating when active */}
+          <div className="flex items-center">
             <button
               onClick={resetFilters}
-              disabled={!hasActiveFilters}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1 ${
+              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-all ${
                 hasActiveFilters
-                  ? 'bg-gray-600 text-white hover:bg-gray-700'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300'
+                  : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
               }`}
+              disabled={!hasActiveFilters}
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-4 h-4" />
               Reset
             </button>
           </div>
         </div>
 
-        {/* Always Visible Additional Filters */}
-        <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-gray-100">
-          {/* Tier Filter */}
-          {showTierFilter && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Tier:</span>
-              <select
-                value={filters.tier || 'all'}
-                onChange={(e) => onFiltersChange({ ...filters, tier: e.target.value as FilterState['tier'] })}
-                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Tiers</option>
-                <option value="tier1">Tier 1</option>
-                <option value="tier2">Tier 2</option>
-                <option value="tier3">Tier 3</option>
-              </select>
-            </div>
-          )}
+        {/* Additional Filters - Always Visible */}
+        {(showTierFilter || showClientFilter || showEntryTypeFilter || showStatusFilter) && (
+          <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200">
+            
+            {/* Tier Filter - Radio Buttons instead of dropdown */}
+            {showTierFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Tier:</span>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'tier1', label: 'Tier 1' },
+                    { value: 'tier2', label: 'Tier 2' },
+                    { value: 'tier3', label: 'Tier 3' }
+                  ].map(tier => (
+                    <button
+                      key={tier.value}
+                      onClick={() => handleFilterChange('tier', tier.value)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                        filters.tier === tier.value
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {tier.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* Entry Type Filter */}
-          {showEntryTypeFilter && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Type:</span>
-              <select
-                value={filters.entryType || 'all'}
-                onChange={(e) => onFiltersChange({ ...filters, entryType: e.target.value as FilterState['entryType'] })}
-                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Types</option>
-                <option value="agency">Agency</option>
-                <option value="client">Client</option>
-              </select>
-            </div>
-          )}
+            {/* Client Filter */}
+            {showClientFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Client:</span>
+                <input
+                  type="text"
+                  placeholder="Filter by client..."
+                  value={filters.client || ''}
+                  onChange={(e) => handleFilterChange('client', e.target.value)}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
+                />
+              </div>
+            )}
 
-          {/* Status Filter */}
-          {showStatusFilter && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Status:</span>
-              <select
-                value={filters.status || 'all'}
-                onChange={(e) => onFiltersChange({ ...filters, status: e.target.value as FilterState['status'] })}
-                className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Status</option>
-                <option value="won">Won</option>
-                <option value="submitted">Submitted</option>
-                <option value="upcoming">Upcoming</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
-          )}
+            {/* Entry Type Filter */}
+            {showEntryTypeFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Type:</span>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'agency', label: 'Agency' },
+                    { value: 'client', label: 'Client' }
+                  ].map(type => (
+                    <button
+                      key={type.value}
+                      onClick={() => handleFilterChange('entryType', type.value)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                        filters.entryType === type.value
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* Search Bar */}
-          {(showClientFilter || showSearchBar) && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Search:</span>
-              <input
-                type="text"
-                placeholder="Search outlets, reporters, articles, clients..."
-                value={filters.client || ''}
-                onChange={(e) => onFiltersChange({ ...filters, client: e.target.value })}
-                className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-64"
-              />
-            </div>
-          )}
-        </div>
+            {/* Status Filter */}
+            {showStatusFilter && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Status:</span>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'won', label: 'Won' },
+                    { value: 'submitted', label: 'Submitted' },
+                    { value: 'upcoming', label: 'Upcoming' },
+                    { value: 'closed', label: 'Closed' }
+                  ].map(status => (
+                    <button
+                      key={status.value}
+                      onClick={() => handleFilterChange('status', status.value)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                        filters.status === status.value
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {status.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

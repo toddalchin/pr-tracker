@@ -30,6 +30,13 @@ interface WorksheetData {
 
 interface ClientPermission {
   client: string;
+  connectionStatus: string;
+  notes: string;
+  clientLead: string;
+  approvalProcess: string;
+  mainContact: string;
+  reintroduce: string;
+  // Legacy fields for compatibility
   project: string;
   assetType: string;
   status: string;
@@ -37,7 +44,6 @@ interface ClientPermission {
   dateApproved: string;
   expiryDate: string;
   usage: string;
-  notes: string;
   contact: string;
   permissionType: string;
   id: number;
@@ -423,83 +429,60 @@ export default function ClientPermissionsPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Client / Project
+                      Client / Contact
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Asset Type
+                      Connection Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                      Client Lead
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Requested
+                      Approval Process
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Expiry
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Usage Rights
+                      Notes
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredPermissions.map((permission) => {
-                    const { isExpiring, isExpired } = isExpiringOrExpired(permission.expiryDate);
-                    
                     return (
                       <tr key={permission.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-6 py-4">
                           <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {permission.client || 'Unknown Client'}
+                              {String(permission.client || 'Unknown Client')}
                             </div>
-                            {permission.project && (
-                              <div className="text-xs text-gray-500">{permission.project}</div>
+                            {permission.mainContact && (
+                              <div className="text-xs text-gray-500">Contact: {String(permission.mainContact)}</div>
                             )}
-                            {permission.contact && (
-                              <div className="text-xs text-gray-400">Contact: {permission.contact}</div>
+                            {permission.clientLead && (
+                              <div className="text-xs text-gray-400">Lead: {String(permission.clientLead)}</div>
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{permission.assetType || 'Not specified'}</div>
-                          {permission.permissionType && (
-                            <div className="text-xs text-gray-500">{permission.permissionType}</div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(permission.status)}`}>
-                            {getStatusIcon(permission.status)}
-                            <span className="ml-1">{permission.status || 'Unknown'}</span>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(String(permission.connectionStatus || ''))}`}>
+                            {getStatusIcon(String(permission.connectionStatus || ''))}
+                            <span className="ml-2">{String(permission.connectionStatus || 'Unknown')}</span>
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{formatDate(permission.dateRequested)}</div>
-                          {permission.dateApproved && (
-                            <div className="text-xs text-gray-500">Approved: {formatDate(permission.dateApproved)}</div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className={`text-sm ${
-                            isExpired ? 'text-red-600 font-medium' : 
-                            isExpiring ? 'text-orange-600 font-medium' : 'text-gray-900'
-                          }`}>
-                            {formatDate(permission.expiryDate)}
-                          </div>
-                          {isExpired && (
-                            <div className="text-xs text-red-500">Expired</div>
-                          )}
-                          {isExpiring && (
-                            <div className="text-xs text-orange-500">Expiring Soon</div>
-                          )}
+                          <div className="text-sm text-gray-900">{String(permission.clientLead || '-')}</div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-900 max-w-xs">
-                            {permission.usage || 'No usage specified'}
+                            {String(permission.approvalProcess || 'Not specified')}
                           </div>
-                          {permission.notes && (
-                            <div className="text-xs text-gray-500 truncate max-w-xs mt-1">
-                              {permission.notes}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 max-w-xs">
+                            {String(permission.notes || 'No notes available')}
+                          </div>
+                          {permission.reintroduce && String(permission.reintroduce) !== 'No' && (
+                            <div className="text-xs text-orange-600 mt-1">
+                              Reintroduce: {String(permission.reintroduce)}
                             </div>
                           )}
                         </td>

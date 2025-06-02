@@ -539,18 +539,18 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Recent Activity - Full Column */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border">
-            <div className="p-6 border-b">
+        {/* Main Content - Reorganized for better visibility */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Recent Activity - Wider and More Prominent */}
+          <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border">
+            <div className="p-4 border-b">
               <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
               <p className="text-sm text-gray-600">Latest activities for {metrics.timeRangeLabel}</p>
             </div>
-            <div className="p-6">
+            <div className="p-4">
               {metrics.recentActivity.length > 0 ? (
-                <div className="space-y-4">
-                  {metrics.recentActivity.map((activity, index) => (
+                <div className="space-y-3">
+                  {metrics.recentActivity.slice(0, 4).map((activity, index) => (
                     <div key={index} className="flex items-start space-x-3">
                       <div className={`p-2 rounded-lg ${getActivityColor(activity.type)}`}>
                         {getActivityIcon(activity.type)}
@@ -586,26 +586,33 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))}
+                  {metrics.recentActivity.length > 4 && (
+                    <div className="text-center pt-2 border-t border-gray-100">
+                      <span className="text-xs text-gray-500">
+                        +{metrics.recentActivity.length - 4} more activities
+                      </span>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No recent activity for this time period</p>
-                  <p className="text-sm text-gray-400">Try expanding your date range</p>
+                <div className="text-center py-6">
+                  <Clock className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No recent activity for this time period</p>
+                  <p className="text-xs text-gray-400">Try expanding your date range</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Performance Insights - Compact */}
+          {/* Performance Insights - Compact Sidebar */}
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-4 border-b">
-                <h2 className="text-base font-semibold text-gray-900">Performance Insights</h2>
-                <p className="text-xs text-gray-500">Compared to previous period</p>
+              <div className="p-3 border-b">
+                <h2 className="text-base font-semibold text-gray-900">Performance</h2>
+                <p className="text-xs text-gray-500">vs previous period</p>
               </div>
-              <div className="p-4">
-                <div className="space-y-4">
+              <div className="p-3">
+                <div className="space-y-3">
                   <div>
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-medium text-gray-700">Reach Growth</span>
@@ -665,25 +672,25 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Quick Stats - Compact */}
             <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-4 border-b">
+              <div className="p-3 border-b">
                 <h2 className="text-base font-semibold text-gray-900">Quick Stats</h2>
                 <p className="text-xs text-gray-500">{metrics.timeRangeLabel}</p>
               </div>
-              <div className="p-4 space-y-3">
+              <div className="p-3 space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Total articles</span>
+                  <span className="text-xs text-gray-600">Total articles</span>
                   <span className="text-sm font-semibold text-gray-900">{metrics.totalCoverage}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Avg daily reach</span>
+                  <span className="text-xs text-gray-600">Avg daily reach</span>
                   <span className="text-sm font-semibold text-gray-900">
                     {formatNumber(Math.round(metrics.totalReach / Math.max(metrics.totalCoverage, 1)))}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Next deadline</span>
+                  <span className="text-xs text-gray-600">Next deadline</span>
                   <span className="text-sm font-semibold text-orange-600">
                     {metrics.upcomingDeadlines > 0 ? `${metrics.upcomingDeadlines} pending` : 'None'}
                   </span>
