@@ -8,16 +8,16 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white p-4 shadow-lg">
+    <header className="bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 text-white p-2 shadow-lg">
       <div className="container mx-auto flex justify-between items-center">
         <div className="flex items-center">
           <Link href="/" className="flex items-center hover:scale-105 transition-transform">
             <Image 
               src="/oswf.png" 
               alt="Oh S#!T We're Famous Logo" 
-              width={160} 
-              height={80}
-              className="h-16 w-auto"
+              width={200} 
+              height={100}
+              className="h-20 w-auto"
               priority
             />
           </Link>
