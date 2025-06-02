@@ -89,15 +89,15 @@ export default function ClientPermissionsPage() {
       approvalProcess: String(item['Approval Process'] || item.E || ''),
       mainContact: String(item['Main point of contact'] || item.F || ''),
       reintroduce: String(item['reintroduce?'] || item.G || ''),
-      // Legacy fields for compatibility
+      // Legacy fields for compatibility - use connectionStatus as status
       project: String(item.Project || ''),
       assetType: String(item['Asset Type'] || ''),
-      status: String(item.Status || item.connectionStatus || ''),
+      status: String(item.Status || item['Have We Connected with their PR/comms team?'] || item.B || ''),
       dateRequested: String(item['Date Requested'] || ''),
       dateApproved: String(item['Date Approved'] || ''),
       expiryDate: String(item['Expiry Date'] || ''),
       usage: String(item.Usage || ''),
-      contact: String(item.Contact || item.mainContact || ''),
+      contact: String(item.Contact || item['Main point of contact'] || item.F || ''),
       permissionType: String(item['Permission Type'] || ''),
       id: index + 1,
       ...item
@@ -106,10 +106,8 @@ export default function ClientPermissionsPage() {
     setPermissions(processedPermissions);
   }, []);
 
-  // Show all permissions since this page doesn't have filters
-  const filteredPermissions = useMemo(() => {
-    return permissions; // Show all data, no filtering
-  }, [permissions]);
+  // Show all permissions since this page doesn't have filters - no useMemo needed
+  const filteredPermissions = permissions;
 
   // Calculate metrics whenever filtered permissions change
   useEffect(() => {

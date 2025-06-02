@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "lsof -ti:5454 | xargs kill -9 2>/dev/null || true && rm -rf .next && next dev -p 5454",
+    "dev-clean": "pkill -f next 2>/dev/null || true && sleep 2 && rm -rf .next node_modules/.cache && next dev -p 5454",
     "dev-basic": "next dev -p 5454",
     "build": "next build",
     "start": "next start",
