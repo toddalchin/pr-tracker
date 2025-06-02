@@ -6,6 +6,14 @@ import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
 import { getPublicationInfo } from '@/lib/publicationData';
 import { 
+  cleanText, 
+  generateIntelligentTitle, 
+  createUniqueKey, 
+  deduplicateItems,
+  formatDate,
+  formatNumber 
+} from '@/lib/dataUtils';
+import { 
   TrendingUp, 
   TrendingDown, 
   Calendar, 
@@ -24,6 +32,8 @@ interface WorksheetData {
   sheets: Record<string, Record<string, unknown>[]>;
   sheetNames: string[];
   timestamp: string;
+  cached?: boolean;
+  quotaExceeded?: boolean;
 }
 
 interface ProcessedCoverageItem {
@@ -65,115 +75,6 @@ interface DashboardMetrics {
   recentActivity: RecentActivity[];
 }
 
-const cleanText = (text: string | undefined | null): string => {
-  return text?.toString().trim() || '';
-};
-
-const generateIntelligentTitle = (item: any): string => {
-  const articleTitle = cleanText(String(item['Article '] || item.Article || ''));
-  const outlet = cleanText(String(item.Outlet || ''));
-  const type = cleanText(String(item.Type || ''));
-  const client = cleanText(String(item['Client (if applicable)'] || item.Client || ''));
-  const reporter = cleanText(String(item.Reporter || ''));
-  
-  // Create intelligent descriptions using Type + context
-  if (type && articleTitle && outlet) {
-    const typeMap: Record<string, string> = {
-      'quote/inclusion': 'Included a quote',
-      'quote': 'Included a quote',
-      'inclusion': 'Included a quote',
-      'feature': 'Featured',
-      'q&a': 'Participated in Q&A',
-      'qa': 'Participated in Q&A',
-      'interview': 'Interviewed',
-      'byline': 'Authored byline',
-      'op-ed': 'Published op-ed',
-      'guest post': 'Wrote guest post',
-      'mention': 'Mentioned',
-      'commentary': 'Provided commentary',
-      'analysis': 'Provided analysis'
-    };
-    
-    const normalizedType = type.toLowerCase().replace(/[^a-z0-9&]/g, '');
-    const action = typeMap[normalizedType] || `Contributed to`;
-    
-    // Create contextual description
-    if (client && client !== 'general coverage') {
-      // Extract topic/theme from article title (first few meaningful words)
-      const titleWords = articleTitle.toLowerCase().split(' ');
-      const meaningfulWords = titleWords.filter(word => 
-        word.length > 3 && 
-        !['this', 'that', 'with', 'from', 'they', 'their', 'will', 'have', 'been', 'are'].includes(word)
-      ).slice(0, 3);
-      
-      if (meaningfulWords.length > 0) {
-        const topic = meaningfulWords.join(' ');
-        return `${action} about ${topic} in ${outlet}`;
-      } else {
-        return `${action} regarding ${client} in ${outlet}`;
-      }
-    } else {
-      // Use article title or generic description
-      const shortTitle = articleTitle.length > 40 ? 
-        articleTitle.substring(0, 40).trim() + '...' : 
-        articleTitle;
-      return `${action} "${shortTitle}" in ${outlet}`;
-    }
-  }
-  
-  // Fallback to original logic if Type info isn't available
-  if (articleTitle) {
-    return articleTitle;
-  }
-  
-  // Enhanced fallback strategies
-  if (client && outlet) {
-    return `${client} coverage in ${outlet}`;
-  } else if (outlet && item.Date) {
-    const date = new Date(String(item.Date));
-    if (!isNaN(date.getTime())) {
-      return `${outlet} article (${date.toLocaleDateString()})`;
-    }
-    return `${outlet} feature`;
-  } else if (reporter && outlet) {
-    return `${reporter}'s piece in ${outlet}`;
-  } else if (outlet) {
-    return `${outlet} feature`;
-  }
-  
-  return `Media coverage`;
-};
-
-const createUniqueKey = (item: any): string => {
-  // Create a unique identifier for deduplication
-  const date = String(item.Date || '').trim();
-  const outlet = String(item.Outlet || '').trim().toLowerCase();
-  const article = String(item['Article '] || item.Article || '').trim().toLowerCase();
-  const reporter = String(item.Reporter || '').trim().toLowerCase();
-  
-  // Use combination of date, outlet, and article title (or reporter if no title)
-  if (article) {
-    return `${date}-${outlet}-${article}`;
-  } else {
-    return `${date}-${outlet}-${reporter}`;
-  }
-};
-
-const deduplicateItems = (items: any[]): any[] => {
-  const seen = new Set<string>();
-  const uniqueItems: any[] = [];
-  
-  for (const item of items) {
-    const key = createUniqueKey(item);
-    if (!seen.has(key)) {
-      seen.add(key);
-      uniqueItems.push(item);
-    }
-  }
-  
-  return uniqueItems;
-};
-
 export default function DashboardPage() {
   const [data, setData] = useState<WorksheetData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -198,18 +99,16 @@ export default function DashboardPage() {
       item.Outlet.toString().trim() !== ''
     );
     
-    // DEDUPLICATE items to prevent double counting
+    // Deduplicate coverage items
     const deduplicatedCoverage = deduplicateItems(validCoverage);
     
-    console.log(`Deduplication: ${validCoverage.length} items -> ${deduplicatedCoverage.length} unique items`);
-    
-    // Process coverage items with reach data
+    // Process coverage data
     const processedCoverage: ProcessedCoverageItem[] = deduplicatedCoverage.map(item => ({
       ...item,
       title: generateIntelligentTitle(item),
       client: cleanText(String(item['Client (if applicable)'] || item.Client || '')) || 'General Coverage',
       reachData: getPublicationInfo(String(item.Outlet || ''))
-    } as ProcessedCoverageItem));
+    }));
     
     // Basic counts
     const totalCoverage = processedCoverage.length;
@@ -283,19 +182,23 @@ export default function DashboardPage() {
     const awardsTrend = previousAwards > 0 ? 
       Math.round(((recentAwards - previousAwards) / previousAwards) * 100) : 0;
 
-    // Get recent activity
+    // Get recent activity - last 5 items overall
     const recentActivity: RecentActivity[] = [];
+
+    // Get all activity items with timestamps
+    const allActivityItems: (RecentActivity & { timestamp: number })[] = [];
 
     // Recent coverage with better titles
     processedCoverage.forEach(item => {
       const date = new Date(String(item.Date || ''));
-      if (!isNaN(date.getTime()) && date >= now30DaysAgo) {
-        recentActivity.push({
+      if (!isNaN(date.getTime())) {
+        allActivityItems.push({
           type: 'coverage',
           title: item.title,
           date: date.toISOString(),
           outlet: String(item.Outlet || ''),
-          link: String(item.Link || '')
+          link: String(item.Link || ''),
+          timestamp: date.getTime()
         });
       }
     });
@@ -303,12 +206,13 @@ export default function DashboardPage() {
     // Recent awards
     awards.forEach(item => {
       const date = new Date(String(item['Date Announced'] || item['Date / Deadline'] || ''));
-      if (!isNaN(date.getTime()) && date >= now30DaysAgo) {
-        recentActivity.push({
+      if (!isNaN(date.getTime())) {
+        allActivityItems.push({
           type: 'award',
           title: String(item.Award || 'Award Entry'),
           date: date.toISOString(),
-          status: String(item.Status || '')
+          status: String(item.Status || ''),
+          timestamp: date.getTime()
         });
       }
     });
@@ -316,7 +220,7 @@ export default function DashboardPage() {
     // Recent outreach
     mediaRelations.forEach(item => {
       const date = new Date(String(item['Date / Deadline'] || ''));
-      if (!isNaN(date.getTime()) && date >= now30DaysAgo) {
+      if (!isNaN(date.getTime())) {
         const contactName = cleanText(String(item.Contact || ''));
         const outlet = cleanText(String(item.Outlet || ''));
         let title = contactName || 'Media Outreach';
@@ -326,20 +230,35 @@ export default function DashboardPage() {
           title = `Contact at ${outlet}`;
         }
         
-        recentActivity.push({
+        allActivityItems.push({
           type: 'outreach',
           title: title,
           date: date.toISOString(),
           outlet: outlet,
-          status: String(item.Status || '')
+          status: String(item.Status || ''),
+          timestamp: date.getTime()
         });
       }
     });
 
-    // Sort by date, most recent first, then take the latest 8 items
-    recentActivity.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Sort by timestamp (most recent first) and deduplicate by title+type+date
+    allActivityItems.sort((a, b) => b.timestamp - a.timestamp);
+    
+    const seenActivities = new Set<string>();
+    const uniqueActivities: RecentActivity[] = [];
+    
+    for (const item of allActivityItems) {
+      const key = `${item.type}-${item.title}-${item.date.split('T')[0]}`; // Use date without time for deduplication
+      if (!seenActivities.has(key) && uniqueActivities.length < 5) {
+        seenActivities.add(key);
+        const { timestamp, ...activityItem } = item;
+        uniqueActivities.push(activityItem);
+      }
+    }
 
-    setMetrics({
+    recentActivity.push(...uniqueActivities);
+
+    return {
       totalCoverage,
       totalReach,
       totalAwards,
@@ -350,24 +269,40 @@ export default function DashboardPage() {
       awardsTrend,
       qualityScore,
       avgReach,
-      recentActivity: recentActivity.slice(0, 8)
-    });
+      recentActivity: recentActivity.slice(0, 5)
+    };
   }, []);
 
   const fetchAllSheetsData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch('/api/sheets/all');
+      
       if (!response.ok) {
+        if (response.status === 429) {
+          // Quota exceeded
+          const errorData = await response.json();
+          if (errorData.quotaError) {
+            throw new Error(`API quota exceeded. Please wait ${errorData.retryAfter || 60} seconds and try again.`);
+          }
+        }
         throw new Error(`Failed to fetch data: ${response.status}`);
       }
+      
       const result = await response.json();
-      setData(result);
-      if (result.success) {
-        calculateMetrics(result);
+      
+      // Handle cache information
+      if (result.cached || result.quotaExceeded) {
+        // Still process the data even if cached
       }
+      
+      const calculatedMetrics = calculateMetrics(result);
+      setMetrics(calculatedMetrics);
+      setData(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load data';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -376,29 +311,6 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchAllSheetsData();
   }, [fetchAllSheetsData]);
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return 'Recent';
-    const now = new Date();
-    const diffTime = Math.abs(now.getTime() - date.getTime());
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    return date.toLocaleDateString();
-  };
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) {
-      return `${(num / 1000000).toFixed(1)}M`;
-    }
-    if (num >= 1000) {
-      return `${(num / 1000).toFixed(1)}K`;
-    }
-    return num.toLocaleString();
-  };
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -434,6 +346,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Footprint</p>
                 <p className="text-2xl font-bold text-gray-900">{formatNumber(metrics.totalReach)}</p>
+                <p className="text-xs text-gray-500">All-time estimated reach</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-lg">
                 <Eye className="w-6 h-6 text-blue-600" />
@@ -560,11 +473,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent Activity Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-lg shadow-sm border">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Recent Activity - Full Column */}
+          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b">
               <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-              <p className="text-sm text-gray-600">Latest updates from the last 30 days</p>
+              <p className="text-sm text-gray-600">Latest 5 activities across all areas</p>
             </div>
             <div className="p-6">
               {metrics.recentActivity.length > 0 ? (
@@ -614,67 +528,107 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border">
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">Performance Insights</h2>
-              <p className="text-sm text-gray-600">Key performance indicators</p>
+          {/* Analytics Column */}
+          <div className="space-y-6">
+            {/* Performance Insights - Compact */}
+            <div className="bg-white rounded-lg shadow-sm border">
+              <div className="p-4 border-b">
+                <h2 className="text-base font-semibold text-gray-900">Performance Insights</h2>
+              </div>
+              <div className="p-4">
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-medium text-gray-700">Reach Growth</span>
+                      <span className={`text-xs font-medium ${metrics.reachTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {metrics.reachTrend >= 0 ? '+' : ''}{metrics.reachTrend}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className={`h-1.5 rounded-full ${metrics.reachTrend >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min(Math.abs(metrics.reachTrend), 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-medium text-gray-700">Coverage Growth</span>
+                      <span className={`text-xs font-medium ${metrics.coverageTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {metrics.coverageTrend >= 0 ? '+' : ''}{metrics.coverageTrend}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className={`h-1.5 rounded-full ${metrics.coverageTrend >= 0 ? 'bg-blue-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min(Math.abs(metrics.coverageTrend), 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-medium text-gray-700">Quality Score</span>
+                      <span className="text-xs font-medium text-purple-600">{metrics.qualityScore}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className="h-1.5 rounded-full bg-purple-500"
+                        style={{ width: `${metrics.qualityScore}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-medium text-gray-700">Response Rate</span>
+                      <span className="text-xs font-medium text-indigo-600">{metrics.responseRate}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div 
+                        className="h-1.5 rounded-full bg-indigo-500"
+                        style={{ width: `${metrics.responseRate}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="p-6">
-              <div className="space-y-6">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">Reach Growth</span>
-                    <span className={`text-sm font-medium ${metrics.reachTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {metrics.reachTrend >= 0 ? '+' : ''}{metrics.reachTrend}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${metrics.reachTrend >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min(Math.abs(metrics.reachTrend), 100)}%` }}
-                    ></div>
-                  </div>
-                </div>
 
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">Coverage Growth</span>
-                    <span className={`text-sm font-medium ${metrics.coverageTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {metrics.coverageTrend >= 0 ? '+' : ''}{metrics.coverageTrend}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className={`h-2 rounded-full ${metrics.coverageTrend >= 0 ? 'bg-blue-500' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min(Math.abs(metrics.coverageTrend), 100)}%` }}
-                    ></div>
-                  </div>
+            {/* Quick Stats */}
+            <div className="bg-white rounded-lg shadow-sm border">
+              <div className="p-4 border-b">
+                <h2 className="text-base font-semibold text-gray-900">Quick Stats</h2>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Articles this month</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {(() => {
+                      const now = new Date();
+                      const thisMonth = now.getMonth();
+                      const thisYear = now.getFullYear();
+                      return metrics.recentActivity.filter(activity => {
+                        const activityDate = new Date(activity.date);
+                        return activityDate.getMonth() === thisMonth && 
+                               activityDate.getFullYear() === thisYear &&
+                               activity.type === 'coverage';
+                      }).length;
+                    })()}
+                  </span>
                 </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">Quality Score</span>
-                    <span className="text-sm font-medium text-purple-600">{metrics.qualityScore}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="h-2 rounded-full bg-purple-500"
-                      style={{ width: `${metrics.qualityScore}%` }}
-                    ></div>
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Avg daily reach</span>
+                  <span className="text-sm font-semibold text-gray-900">
+                    {formatNumber(Math.round(metrics.totalReach / Math.max(metrics.totalCoverage, 1)))}
+                  </span>
                 </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-700">Response Rate</span>
-                    <span className="text-sm font-medium text-indigo-600">{metrics.responseRate}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="h-2 rounded-full bg-indigo-500"
-                      style={{ width: `${metrics.responseRate}%` }}
-                    ></div>
-                  </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Next deadline</span>
+                  <span className="text-sm font-semibold text-orange-600">
+                    {metrics.upcomingDeadlines > 0 ? `${metrics.upcomingDeadlines} pending` : 'None'}
+                  </span>
                 </div>
               </div>
             </div>

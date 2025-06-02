@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Header from '@/components/Header';
 import { getPublicationInfo, getReachMethodologyExplanation, getDataQualityStats } from '@/lib/publicationData';
+import { cleanText, formatDate, formatNumber } from '@/lib/dataUtils';
 
 interface CoverageItem {
   Date: string;
@@ -29,22 +30,6 @@ interface FilterState {
   tier: string;
   client: string;
 }
-
-// Helper function to clean N/A data
-const cleanText = (text: string | undefined | null): string => {
-  if (!text) return '';
-  return text.toString().replace(/^N\/A\s+/gi, '').replace(/^N\/A$/gi, '').trim();
-};
-
-// Helper function to format dates nicely
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-};
 
 // Line Chart Component
 const LineChart = ({ data, color, label }: { 
@@ -95,7 +80,7 @@ const LineChart = ({ data, color, label }: {
           );
         })}
         
-        {/* X-axis labels */}
+        {/* X-axis labels - increased fontSize for better readability */}
         {data.map((item, index) => {
           const x = (index / (data.length - 1)) * 100;
           return (
@@ -104,7 +89,7 @@ const LineChart = ({ data, color, label }: {
               x={x}
               y="95"
               textAnchor="middle"
-              fontSize="3"
+              fontSize="4.5"
               fill="#6b7280"
               className="font-medium"
             >
@@ -172,9 +157,6 @@ export default function CoveragePage() {
         const mediaTracker2025 = data.sheets['Media Tracker (2025)'] || [];
         const mediaTracker2024 = data.sheets['Media Tracker'] || [];
         
-        console.log('Raw data - Media Tracker (2025):', mediaTracker2025.length, 'items');
-        console.log('Raw data - Media Tracker:', mediaTracker2024.length, 'items');
-        
         const allItems = [...mediaTracker2025, ...mediaTracker2024];
         
         // Filter out items without dates or outlets
@@ -185,12 +167,9 @@ export default function CoveragePage() {
           item.Outlet.toString().trim() !== ''
         );
         
-        console.log('Processing data, filteredItems length:', filteredItems.length);
-        
         setAllCoverageItems(filteredItems);
         
       } catch (err) {
-        console.error('Error fetching data:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch data');
       } finally {
         setLoading(false);
@@ -243,11 +222,20 @@ export default function CoveragePage() {
       });
     }
 
-    // Client filter
+    // Enhanced keyword search - searches across outlets, reporters, article titles, and clients
     if (filters.client) {
-      filtered = filtered.filter(item =>
-        item.client.toLowerCase().includes(filters.client.toLowerCase())
-      );
+      const searchTerm = filters.client.toLowerCase();
+      filtered = filtered.filter(item => {
+        const outlet = (item.Outlet || '').toLowerCase();
+        const reporter = cleanText(item.Reporter || '').toLowerCase();
+        const title = (item.title || '').toLowerCase();
+        const client = (item.client || '').toLowerCase();
+        
+        return outlet.includes(searchTerm) || 
+               reporter.includes(searchTerm) || 
+               title.includes(searchTerm) || 
+               client.includes(searchTerm);
+      });
     }
 
     return filtered;
@@ -345,6 +333,14 @@ export default function CoveragePage() {
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [processedData]);
 
+  // Check if any filters are active (for Reset button styling)
+  const hasActiveFilters = useMemo(() => {
+    return filters.year !== 'all' || 
+           filters.quarter !== 'all' || 
+           filters.tier !== 'all' || 
+           filters.client.trim() !== '';
+  }, [filters]);
+
   const resetFilters = () => {
     setFilters({
       year: 'all',
@@ -389,18 +385,15 @@ export default function CoveragePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Cache Warning */}
         {cacheInfo && (
-          <div className={`mb-6 p-4 rounded-lg border ${
+          <div className={`mb-4 px-3 py-2 rounded text-sm border ${
             cacheInfo.quotaExceeded 
-              ? 'bg-red-50 border-red-200 text-red-800' 
-              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+              ? 'bg-red-50 border-red-200 text-red-700' 
+              : 'bg-yellow-50 border-yellow-200 text-yellow-700'
           }`}>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">
-                {cacheInfo.quotaExceeded ? '⚠️ Using Cached Data (Quota Exceeded)' : '📋 Using Cached Data'}
-              </span>
-              {cacheInfo.message && <span>- {cacheInfo.message}</span>}
-              {cacheInfo.cacheAge && <span>(Cached {Math.round(cacheInfo.cacheAge / 60)} minutes ago)</span>}
-            </div>
+            <span className="font-medium">
+              {cacheInfo.quotaExceeded ? '⚠️ Using cached data (quota exceeded)' : '📋 Using cached data'}
+            </span>
+            {cacheInfo.cacheAge && <span> - {Math.round(cacheInfo.cacheAge / 60)}min ago</span>}
           </div>
         )}
 
@@ -478,12 +471,12 @@ export default function CoveragePage() {
               </div>
             </div>
 
-            {/* Client Search */}
+            {/* Enhanced Keyword Search */}
             <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <span className="text-sm font-medium text-gray-700">Client:</span>
+              <span className="text-sm font-medium text-gray-700">Search:</span>
               <input
                 type="text"
-                placeholder="Search clients..."
+                placeholder="Search..."
                 value={filters.client}
                 onChange={(e) => setFilters(prev => ({ ...prev, client: e.target.value }))}
                 className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -493,7 +486,11 @@ export default function CoveragePage() {
             {/* Reset Button */}
             <button
               onClick={resetFilters}
-              className="px-4 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-full hover:bg-gray-50 transition-colors"
+              className={`px-4 py-1 text-sm border rounded-full transition-colors ${
+                hasActiveFilters
+                  ? 'text-amber-800 border-amber-300 bg-amber-50 hover:bg-amber-100'
+                  : 'text-gray-600 border-gray-300 hover:text-gray-800 hover:bg-gray-50'
+              }`}
             >
               Reset
             </button>
@@ -535,13 +532,13 @@ export default function CoveragePage() {
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Total Reach</h3>
                 <p className="text-3xl font-bold text-green-600">{analytics.totalReach.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Estimated readers <span className="text-xs text-amber-600">(includes duplication)</span></p>
+                <p className="text-sm text-gray-600">Estimated readers <span className="text-xs text-gray-400">(includes duplication)</span></p>
               </div>
               
               <div className="bg-white rounded-lg shadow-sm border p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Average Reach</h3>
                 <p className="text-3xl font-bold text-purple-600">{analytics.avgReach.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Per article <span className="text-xs text-amber-600">(3% of publication readership)</span></p>
+                <p className="text-sm text-gray-600">Per article <span className="text-xs text-gray-400">(3% of publication readership)</span></p>
               </div>
               
               <div className="bg-white rounded-lg shadow-sm border p-6">

@@ -29,6 +29,7 @@ interface AwardEntry {
   individual: string;
   agency: string;
   notes: string;
+  id: number;
   [key: string]: unknown;
 }
 
@@ -41,7 +42,7 @@ export default function AwardsPage() {
   const processAwardsData = useCallback((data: WorksheetData) => {
     const awardsSheet = data.sheets['Awards'] || [];
     
-    const processedAwards = awardsSheet.map(item => ({
+    const processedAwards = awardsSheet.map((item, index) => ({
       award: String(item['Award '] || item.Award || ''),
       status: String(item.Status || item.Submission || ''),
       deadline: String(item['Date / Deadline'] || item.Deadline || ''),
@@ -50,10 +51,10 @@ export default function AwardsPage() {
       individual: String(item.Individual || ''),
       agency: String(item.Agency || ''),
       notes: String(item.Notes || ''),
+      id: index + 1,
       ...item
     }));
-
-    console.log('Processed awards data:', processedAwards);
+    
     setAwards(processedAwards);
   }, []);
 

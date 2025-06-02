@@ -15,9 +15,9 @@ export default function Header() {
             <Image 
               src="/oswf.png" 
               alt="Oh S#!T We're Famous Logo" 
-              width={120} 
-              height={60}
-              className="h-12 w-auto"
+              width={160} 
+              height={80}
+              className="h-16 w-auto"
               priority
             />
           </Link>
