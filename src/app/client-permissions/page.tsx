@@ -1,0 +1,583 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import Header from '@/components/Header';
+import LoadingState from '@/components/LoadingState';
+import ErrorState from '@/components/ErrorState';
+import UniversalFilters, { FilterState, applyDateFilter } from '@/components/UniversalFilters';
+import { 
+  Shield, 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  AlertTriangle,
+  Eye,
+  Download,
+  FileText,
+  Building,
+  Users,
+  Calendar,
+  ExternalLink,
+  Search,
+  Filter as FilterIcon
+} from 'lucide-react';
+
+interface WorksheetData {
+  success: boolean;
+  sheets: Record<string, Record<string, unknown>[]>;
+  sheetNames: string[];
+  timestamp: string;
+}
+
+interface ClientPermission {
+  client: string;
+  project: string;
+  assetType: string;
+  status: string;
+  dateRequested: string;
+  dateApproved: string;
+  expiryDate: string;
+  usage: string;
+  notes: string;
+  contact: string;
+  permissionType: string;
+  id: number;
+  [key: string]: unknown;
+}
+
+interface PermissionMetrics {
+  totalPermissions: number;
+  approved: number;
+  pending: number;
+  expired: number;
+  denied: number;
+  approvalRate: number;
+  avgProcessingTime: number;
+  upcomingExpirations: number;
+  timeRangeLabel: string;
+}
+
+export default function ClientPermissionsPage() {
+  const [data, setData] = useState<WorksheetData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<ClientPermission[]>([]);
+  const [filteredPermissions, setFilteredPermissions] = useState<ClientPermission[]>([]);
+  const [metrics, setMetrics] = useState<PermissionMetrics | null>(null);
+
+  // Initialize filters with YTD as default
+  const [filters, setFilters] = useState<FilterState>({
+    dateRange: 'ytd',
+    year: new Date().getFullYear().toString(),
+    tier: 'all',
+    client: '',
+    entryType: 'all',
+    status: 'all'
+  });
+
+  const processPermissionsData = useCallback((data: WorksheetData) => {
+    const permissionsSheet = data.sheets['Client Permissions'] || [];
+    
+    const processedPermissions = permissionsSheet.map((item, index) => ({
+      client: String(item.Client || item['Client Name'] || ''),
+      project: String(item.Project || item['Project Name'] || item.Campaign || ''),
+      assetType: String(item['Asset Type'] || item.Type || item.Asset || ''),
+      status: String(item.Status || item['Approval Status'] || ''),
+      dateRequested: String(item['Date Requested'] || item['Request Date'] || item.Date || ''),
+      dateApproved: String(item['Date Approved'] || item['Approval Date'] || ''),
+      expiryDate: String(item['Expiry Date'] || item.Expiry || item['Valid Until'] || ''),
+      usage: String(item.Usage || item['Usage Rights'] || item.Rights || ''),
+      notes: String(item.Notes || item.Comments || ''),
+      contact: String(item.Contact || item['Contact Person'] || ''),
+      permissionType: String(item['Permission Type'] || item.Category || ''),
+      id: index + 1,
+      ...item
+    }));
+    
+    setPermissions(processedPermissions);
+  }, []);
+
+  // Apply filters whenever permissions or filters change
+  useEffect(() => {
+    let filtered = [...permissions];
+
+    // Apply date filtering (use dateRequested as primary date field)
+    if (filters.dateRange !== 'all') {
+      filtered = filtered.filter(permission => {
+        const primaryDate = permission.dateRequested || permission.dateApproved;
+        if (!primaryDate) return false;
+        
+        const dateFiltered = applyDateFilter([{ Date: primaryDate }], filters, 'Date');
+        return dateFiltered.length > 0;
+      });
+    }
+
+    // Apply status filter
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(permission => {
+        const status = permission.status.toLowerCase();
+        switch (filters.status) {
+          case 'won': // Map to 'approved'
+            return status.includes('approved') || status.includes('granted') || status.includes('yes');
+          case 'submitted': // Map to 'pending'
+            return status.includes('pending') || status.includes('review') || status.includes('waiting');
+          case 'closed': // Map to 'denied'
+            return status.includes('denied') || status.includes('rejected') || status.includes('no');
+          case 'upcoming': // Map to 'expiring soon'
+            if (!permission.expiryDate) return false;
+            const expiryDate = new Date(permission.expiryDate);
+            const now = new Date();
+            const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+            return !isNaN(expiryDate.getTime()) && expiryDate >= now && expiryDate <= thirtyDaysFromNow;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Apply client filter
+    if (filters.client && filters.client.trim() !== '') {
+      const searchTerm = filters.client.toLowerCase();
+      filtered = filtered.filter(permission => 
+        permission.client.toLowerCase().includes(searchTerm) ||
+        permission.project.toLowerCase().includes(searchTerm) ||
+        permission.assetType.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    setFilteredPermissions(filtered);
+  }, [permissions, filters]);
+
+  // Calculate metrics whenever filtered permissions change
+  useEffect(() => {
+    if (filteredPermissions.length === 0) {
+      setMetrics({
+        totalPermissions: 0,
+        approved: 0,
+        pending: 0,
+        expired: 0,
+        denied: 0,
+        approvalRate: 0,
+        avgProcessingTime: 0,
+        upcomingExpirations: 0,
+        timeRangeLabel: getTimeRangeLabel()
+      });
+      return;
+    }
+
+    const approved = filteredPermissions.filter(p => {
+      const status = p.status.toLowerCase();
+      return status.includes('approved') || status.includes('granted') || status.includes('yes');
+    }).length;
+
+    const pending = filteredPermissions.filter(p => {
+      const status = p.status.toLowerCase();
+      return status.includes('pending') || status.includes('review') || status.includes('waiting');
+    }).length;
+
+    const denied = filteredPermissions.filter(p => {
+      const status = p.status.toLowerCase();
+      return status.includes('denied') || status.includes('rejected') || status.includes('no');
+    }).length;
+
+    // Check for expired permissions
+    const now = new Date();
+    const expired = filteredPermissions.filter(p => {
+      if (!p.expiryDate) return false;
+      const expiryDate = new Date(p.expiryDate);
+      return !isNaN(expiryDate.getTime()) && expiryDate < now;
+    }).length;
+
+    // Check for upcoming expirations (next 30 days)
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const upcomingExpirations = filteredPermissions.filter(p => {
+      if (!p.expiryDate) return false;
+      const expiryDate = new Date(p.expiryDate);
+      return !isNaN(expiryDate.getTime()) && expiryDate >= now && expiryDate <= thirtyDaysFromNow;
+    }).length;
+
+    // Calculate approval rate
+    const totalProcessed = approved + denied;
+    const approvalRate = totalProcessed > 0 ? Math.round((approved / totalProcessed) * 100) : 0;
+
+    // Calculate average processing time (for approved permissions)
+    const approvedWithDates = filteredPermissions.filter(p => 
+      p.dateRequested && p.dateApproved && 
+      (p.status.toLowerCase().includes('approved') || p.status.toLowerCase().includes('granted'))
+    );
+    
+    let avgProcessingTime = 0;
+    if (approvedWithDates.length > 0) {
+      const totalDays = approvedWithDates.reduce((sum, p) => {
+        const requested = new Date(p.dateRequested);
+        const approved = new Date(p.dateApproved);
+        if (!isNaN(requested.getTime()) && !isNaN(approved.getTime())) {
+          const diffTime = approved.getTime() - requested.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          return sum + diffDays;
+        }
+        return sum;
+      }, 0);
+      avgProcessingTime = Math.round(totalDays / approvedWithDates.length);
+    }
+
+    setMetrics({
+      totalPermissions: filteredPermissions.length,
+      approved,
+      pending,
+      expired,
+      denied,
+      approvalRate,
+      avgProcessingTime,
+      upcomingExpirations,
+      timeRangeLabel: getTimeRangeLabel()
+    });
+  }, [filteredPermissions]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/sheets/all');
+      
+      if (!response.ok) {
+        if (response.status === 429) {
+          const errorData = await response.json();
+          if (errorData.quotaError) {
+            throw new Error(`API quota exceeded. Please wait ${errorData.retryAfter || 60} seconds and try again.`);
+          }
+        }
+        throw new Error(`Failed to fetch data: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      setData(result);
+      if (result.success) {
+        processPermissionsData(result);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, [processPermissionsData]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const getStatusColor = (status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('approved') || statusLower.includes('granted') || statusLower.includes('yes')) {
+      return 'bg-green-100 text-green-800 border-green-200';
+    }
+    if (statusLower.includes('pending') || statusLower.includes('review') || statusLower.includes('waiting')) {
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    }
+    if (statusLower.includes('denied') || statusLower.includes('rejected') || statusLower.includes('no')) {
+      return 'bg-red-100 text-red-800 border-red-200';
+    }
+    return 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
+  const getStatusIcon = (status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('approved') || statusLower.includes('granted') || statusLower.includes('yes')) {
+      return <CheckCircle className="w-4 h-4" />;
+    }
+    if (statusLower.includes('pending') || statusLower.includes('review') || statusLower.includes('waiting')) {
+      return <Clock className="w-4 h-4" />;
+    }
+    if (statusLower.includes('denied') || statusLower.includes('rejected') || statusLower.includes('no')) {
+      return <XCircle className="w-4 h-4" />;
+    }
+    return <AlertTriangle className="w-4 h-4" />;
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleDateString();
+  };
+
+  const isExpiringOrExpired = (expiryDate: string) => {
+    if (!expiryDate) return { isExpiring: false, isExpired: false };
+    const expiry = new Date(expiryDate);
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    return {
+      isExpired: !isNaN(expiry.getTime()) && expiry < now,
+      isExpiring: !isNaN(expiry.getTime()) && expiry >= now && expiry <= thirtyDaysFromNow
+    };
+  };
+
+  const getAvailableYears = () => {
+    const years = new Set<string>();
+    permissions.forEach(permission => {
+      const primaryDate = permission.dateRequested || permission.dateApproved;
+      if (primaryDate) {
+        const date = new Date(primaryDate);
+        if (!isNaN(date.getTime())) {
+          years.add(date.getFullYear().toString());
+        }
+      }
+    });
+    return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  };
+
+  const getTimeRangeLabel = () => {
+    switch (filters.dateRange) {
+      case 'ytd': return `${filters.year || new Date().getFullYear()} YTD`;
+      case 'quarter': return `Q${filters.quarter || Math.ceil((new Date().getMonth() + 1) / 3)} ${filters.year || new Date().getFullYear()}`;
+      case 'month': return 'This Month';
+      case 'all': return 'All Time';
+      case 'custom': return 'Custom Period';
+      default: return `${filters.year || new Date().getFullYear()} YTD`;
+    }
+  };
+
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState message={error} onRetry={fetchData} />;
+  if (!metrics) return <ErrorState message="No permission data available" onRetry={fetchData} />;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      
+      <main className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Client Permissions
+          </h1>
+          <p className="text-gray-600">
+            Track client permissions, usage rights, and approval status for {metrics.timeRangeLabel}
+          </p>
+        </div>
+
+        {/* Universal Filters */}
+        <UniversalFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          availableYears={getAvailableYears()}
+          showStatusFilter={true}
+          showClientFilter={true}
+        />
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Requests</p>
+                <p className="text-2xl font-bold text-gray-900">{metrics.totalPermissions}</p>
+                <p className="text-xs text-gray-500">{metrics.timeRangeLabel}</p>
+              </div>
+              <div className="p-3 bg-blue-100 rounded-lg">
+                <FileText className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Approved</p>
+                <p className="text-2xl font-bold text-green-600">{metrics.approved}</p>
+                <p className="text-xs text-gray-500">{metrics.approvalRate}% approval rate</p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-lg">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pending Review</p>
+                <p className="text-2xl font-bold text-yellow-600">{metrics.pending}</p>
+                <p className="text-xs text-gray-500">Awaiting approval</p>
+              </div>
+              <div className="p-3 bg-yellow-100 rounded-lg">
+                <Clock className="w-6 h-6 text-yellow-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Expiring Soon</p>
+                <p className="text-2xl font-bold text-orange-600">{metrics.upcomingExpirations}</p>
+                <p className="text-xs text-gray-500">Next 30 days</p>
+              </div>
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Secondary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Avg Processing Time</p>
+                <p className="text-2xl font-bold text-purple-600">{metrics.avgProcessingTime}</p>
+                <p className="text-xs text-gray-500">Days to approval</p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-lg">
+                <Calendar className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Denied</p>
+                <p className="text-2xl font-bold text-red-600">{metrics.denied}</p>
+                <p className="text-xs text-gray-500">Permission denied</p>
+              </div>
+              <div className="p-3 bg-red-100 rounded-lg">
+                <XCircle className="w-6 h-6 text-red-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Expired</p>
+                <p className="text-2xl font-bold text-gray-600">{metrics.expired}</p>
+                <p className="text-xs text-gray-500">Past expiry date</p>
+              </div>
+              <div className="p-3 bg-gray-100 rounded-lg">
+                <AlertTriangle className="w-6 h-6 text-gray-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Permissions List */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-6 border-b">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Permission Requests ({filteredPermissions.length})
+              </h2>
+              <div className="text-sm text-gray-500">
+                {metrics.timeRangeLabel}
+              </div>
+            </div>
+          </div>
+          
+          {filteredPermissions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client / Project
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Asset Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Requested
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Expiry
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Usage Rights
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredPermissions.map((permission) => {
+                    const { isExpiring, isExpired } = isExpiringOrExpired(permission.expiryDate);
+                    
+                    return (
+                      <tr key={permission.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {permission.client || 'Unknown Client'}
+                            </div>
+                            {permission.project && (
+                              <div className="text-xs text-gray-500">{permission.project}</div>
+                            )}
+                            {permission.contact && (
+                              <div className="text-xs text-gray-400">Contact: {permission.contact}</div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{permission.assetType || 'Not specified'}</div>
+                          {permission.permissionType && (
+                            <div className="text-xs text-gray-500">{permission.permissionType}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(permission.status)}`}>
+                            {getStatusIcon(permission.status)}
+                            <span className="ml-1">{permission.status || 'Unknown'}</span>
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{formatDate(permission.dateRequested)}</div>
+                          {permission.dateApproved && (
+                            <div className="text-xs text-gray-500">Approved: {formatDate(permission.dateApproved)}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className={`text-sm ${
+                            isExpired ? 'text-red-600 font-medium' : 
+                            isExpiring ? 'text-orange-600 font-medium' : 'text-gray-900'
+                          }`}>
+                            {formatDate(permission.expiryDate)}
+                          </div>
+                          {isExpired && (
+                            <div className="text-xs text-red-500">Expired</div>
+                          )}
+                          {isExpiring && (
+                            <div className="text-xs text-orange-500">Expiring Soon</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 max-w-xs">
+                            {permission.usage || 'No usage specified'}
+                          </div>
+                          {permission.notes && (
+                            <div className="text-xs text-gray-500 truncate max-w-xs mt-1">
+                              {permission.notes}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center">
+              <Shield className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 mb-2">No permissions found</p>
+              <p className="text-sm text-gray-400">
+                Try adjusting your filters or check if permission data is available
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+} 

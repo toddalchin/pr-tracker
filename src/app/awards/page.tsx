@@ -4,13 +4,18 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
+import UniversalFilters, { FilterState, applyDateFilter } from '@/components/UniversalFilters';
 import { 
   Award, 
   Calendar, 
   Clock, 
   TrendingUp,
   Trophy,
-  Target
+  Target,
+  Building,
+  Users,
+  ExternalLink,
+  Filter
 } from 'lucide-react';
 
 interface WorksheetData {
@@ -28,6 +33,8 @@ interface AwardEntry {
   category: string;
   individual: string;
   agency: string;
+  client: string;
+  isAgencyEntry: boolean;
   notes: string;
   id: number;
   [key: string]: unknown;
@@ -38,33 +45,126 @@ export default function AwardsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [awards, setAwards] = useState<AwardEntry[]>([]);
+  const [filteredAwards, setFilteredAwards] = useState<AwardEntry[]>([]);
+
+  // Initialize filters with YTD as default
+  const [filters, setFilters] = useState<FilterState>({
+    dateRange: 'ytd',
+    year: new Date().getFullYear().toString(),
+    tier: 'all',
+    client: '',
+    entryType: 'all',
+    status: 'all'
+  });
 
   const processAwardsData = useCallback((data: WorksheetData) => {
     const awardsSheet = data.sheets['Awards'] || [];
     
-    const processedAwards = awardsSheet.map((item, index) => ({
-      award: String(item['Award '] || item.Award || ''),
-      status: String(item.Status || item.Submission || ''),
-      deadline: String(item['Date / Deadline'] || item.Deadline || ''),
-      dateAnnounced: String(item['Date Announced'] || ''),
-      category: String(item.Category || ''),
-      individual: String(item.Individual || ''),
-      agency: String(item.Agency || ''),
-      notes: String(item.Notes || ''),
-      id: index + 1,
-      ...item
-    }));
+    const processedAwards = awardsSheet.map((item, index) => {
+      // Check if this is an agency entry (marked with 'x' in Agency column)
+      const agencyValue = String(item.Agency || '').toLowerCase().trim();
+      const isAgencyEntry = agencyValue === 'x' || agencyValue === 'yes' || agencyValue === 'agency';
+      
+      return {
+        award: String(item['Award '] || item.Award || ''),
+        status: String(item.Status || item.Submission || ''),
+        deadline: String(item['Date / Deadline'] || item.Deadline || ''),
+        dateAnnounced: String(item['Date Announced'] || ''),
+        category: String(item.Category || ''),
+        individual: String(item.Individual || ''),
+        agency: String(item.Agency || ''),
+        client: String(item.Client || ''),
+        isAgencyEntry,
+        notes: String(item.Notes || ''),
+        id: index + 1,
+        ...item
+      };
+    });
     
     setAwards(processedAwards);
   }, []);
 
+  // Apply filters whenever awards or filters change
+  useEffect(() => {
+    let filtered = [...awards];
+
+    // Apply date filtering (use deadline for awards without announced date, then announced date)
+    if (filters.dateRange !== 'all') {
+      filtered = filtered.filter(award => {
+        const primaryDate = award.dateAnnounced || award.deadline;
+        if (!primaryDate) return false;
+        
+        const dateFiltered = applyDateFilter([{ Date: primaryDate }], filters, 'Date');
+        return dateFiltered.length > 0;
+      });
+    }
+
+    // Apply entry type filter
+    if (filters.entryType !== 'all') {
+      filtered = filtered.filter(award => {
+        if (filters.entryType === 'agency') {
+          return award.isAgencyEntry;
+        } else if (filters.entryType === 'client') {
+          return !award.isAgencyEntry;
+        }
+        return true;
+      });
+    }
+
+    // Apply status filter
+    if (filters.status !== 'all') {
+      filtered = filtered.filter(award => {
+        const status = award.status.toLowerCase();
+        switch (filters.status) {
+          case 'won':
+            return status.includes('won') || status.includes('winner') || 
+                   status.includes('gold') || status.includes('silver') || status.includes('bronze');
+          case 'submitted':
+            return status.includes('submitted') || status.includes('pending') || 
+                   status.includes('shortlist') || status.includes('finalist');
+          case 'upcoming':
+            const deadline = new Date(award.deadline);
+            const now = new Date();
+            return !isNaN(deadline.getTime()) && deadline > now && 
+                   !status.includes('submitted') && !status.includes('won');
+          case 'closed':
+            return status.includes('not this time') || status.includes('rejected') || 
+                   status.includes('declined') || status.includes('not selected');
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Apply client/award name filter
+    if (filters.client && filters.client.trim() !== '') {
+      const searchTerm = filters.client.toLowerCase();
+      filtered = filtered.filter(award => 
+        award.award.toLowerCase().includes(searchTerm) ||
+        award.client.toLowerCase().includes(searchTerm) ||
+        award.category.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    setFilteredAwards(filtered);
+  }, [awards, filters]);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await fetch('/api/sheets/all');
+      
       if (!response.ok) {
+        if (response.status === 429) {
+          const errorData = await response.json();
+          if (errorData.quotaError) {
+            throw new Error(`API quota exceeded. Please wait ${errorData.retryAfter || 60} seconds and try again.`);
+          }
+        }
         throw new Error(`Failed to fetch data: ${response.status}`);
       }
+      
       const result = await response.json();
       setData(result);
       if (result.success) {
@@ -123,18 +223,18 @@ export default function AwardsPage() {
     return !isNaN(date.getTime()) && date > now;
   };
 
-  const categorizeAwards = () => {
-    const submitted = awards.filter(award => {
+  const categorizeAwards = (awardsToProcess: AwardEntry[]) => {
+    const submitted = awardsToProcess.filter(award => {
       const status = award.status.toLowerCase();
       return status.includes('submitted') || status.includes('pending') || status.includes('shortlist') || status.includes('finalist');
     });
 
-    const won = awards.filter(award => {
+    const won = awardsToProcess.filter(award => {
       const status = award.status.toLowerCase();
       return status.includes('won') || status.includes('winner') || status.includes('gold') || status.includes('silver') || status.includes('bronze');
     });
 
-    const upcoming = awards.filter(award => {
+    const upcoming = awardsToProcess.filter(award => {
       // Check if deadline is upcoming and not yet submitted
       if (!award.deadline) return false;
       const deadline = new Date(award.deadline);
@@ -146,7 +246,7 @@ export default function AwardsPage() {
              !status.includes('won');
     });
 
-    const closed = awards.filter(award => {
+    const closed = awardsToProcess.filter(award => {
       const status = award.status.toLowerCase();
       return status.includes('not this time') || 
              status.includes('rejected') || 
@@ -157,10 +257,38 @@ export default function AwardsPage() {
     return { submitted, won, upcoming, closed };
   };
 
+  // Get available years from the award data
+  const getAvailableYears = () => {
+    const years = new Set<string>();
+    awards.forEach(award => {
+      const primaryDate = award.dateAnnounced || award.deadline;
+      if (primaryDate) {
+        const date = new Date(primaryDate);
+        if (!isNaN(date.getTime())) {
+          years.add(date.getFullYear().toString());
+        }
+      }
+    });
+    return Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
+  };
+
   if (loading) return <LoadingState />;
   if (error) return <ErrorState message={error} onRetry={fetchData} />;
 
-  const { submitted, won, upcoming, closed } = categorizeAwards();
+  const { submitted, won, upcoming, closed } = categorizeAwards(filteredAwards);
+  const agencyEntries = filteredAwards.filter(award => award.isAgencyEntry);
+  const clientEntries = filteredAwards.filter(award => !award.isAgencyEntry);
+
+  const getTimeRangeLabel = () => {
+    switch (filters.dateRange) {
+      case 'ytd': return `${filters.year || new Date().getFullYear()} YTD`;
+      case 'quarter': return `Q${filters.quarter || Math.ceil((new Date().getMonth() + 1) / 3)} ${filters.year || new Date().getFullYear()}`;
+      case 'month': return 'This Month';
+      case 'all': return 'All Time';
+      case 'custom': return 'Custom Period';
+      default: return `${filters.year || new Date().getFullYear()} YTD`;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -172,196 +300,115 @@ export default function AwardsPage() {
             Awards Tracker
           </h1>
           <p className="text-gray-600">
-            Track award submissions, wins, and upcoming opportunities
+            Track award submissions, wins, and upcoming opportunities for {getTimeRangeLabel()}
           </p>
         </div>
 
+        {/* Universal Filters */}
+        <UniversalFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          availableYears={getAvailableYears()}
+          showEntryTypeFilter={true}
+          showStatusFilter={true}
+          showClientFilter={true}
+        />
+
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Submitted/Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">{submitted.length}</p>
+                <p className="text-xs font-medium text-gray-600">Submitted/Pending</p>
+                <p className="text-xl font-bold text-yellow-600">{submitted.length}</p>
               </div>
-              <div className="p-3 bg-yellow-100 rounded-lg">
-                <Clock className="w-6 h-6 text-yellow-600" />
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Clock className="w-5 h-5 text-yellow-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Won</p>
-                <p className="text-2xl font-bold text-green-600">{won.length}</p>
+                <p className="text-xs font-medium text-gray-600">Won</p>
+                <p className="text-xl font-bold text-green-600">{won.length}</p>
               </div>
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Trophy className="w-6 h-6 text-green-600" />
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Trophy className="w-5 h-5 text-green-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Upcoming Deadlines</p>
-                <p className="text-2xl font-bold text-blue-600">{upcoming.length}</p>
+                <p className="text-xs font-medium text-gray-600">Upcoming</p>
+                <p className="text-xl font-bold text-blue-600">{upcoming.length}</p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Calendar className="w-6 h-6 text-blue-600" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Calendar className="w-5 h-5 text-blue-600" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Closed/Rejected</p>
-                <p className="text-2xl font-bold text-red-600">{closed.length}</p>
+                <p className="text-xs font-medium text-gray-600">Closed</p>
+                <p className="text-xl font-bold text-gray-600">{closed.length}</p>
               </div>
-              <div className="p-3 bg-red-100 rounded-lg">
-                <Target className="w-6 h-6 text-red-600" />
+              <div className="p-2 bg-gray-100 rounded-lg">
+                <Target className="w-5 h-5 text-gray-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600">Agency Entries</p>
+                <p className="text-xl font-bold text-purple-600">{agencyEntries.length}</p>
+              </div>
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Building className="w-5 h-5 text-purple-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600">Client Entries</p>
+                <p className="text-xl font-bold text-indigo-600">{clientEntries.length}</p>
+              </div>
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <Users className="w-5 h-5 text-indigo-600" />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Awards Lists */}
-        <div className="space-y-8">
-          {/* Upcoming Awards */}
-          {upcoming.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">Upcoming Deadlines</h2>
-                <p className="text-sm text-gray-600">Awards with approaching deadlines</p>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {upcoming.map((award, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{award.award}</h3>
-                        {award.category && (
-                          <p className="text-sm text-gray-600">{award.category}</p>
-                        )}
-                        <div className="flex items-center mt-2 text-sm text-gray-500">
-                          <Calendar className="w-4 h-4 mr-1" />
-                          Deadline: {formatDate(award.deadline)}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                          <Calendar className="w-3 h-3 mr-1" />
-                          Upcoming
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+        {/* Awards List */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-6 border-b">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Award Entries ({filteredAwards.length})
+              </h2>
+              <div className="text-sm text-gray-500">
+                {getTimeRangeLabel()}
               </div>
             </div>
-          )}
-
-          {/* Submitted/Pending Awards */}
-          {submitted.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">Submitted & Pending</h2>
-                <p className="text-sm text-gray-600">Awards currently under review</p>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {submitted.map((award, index) => (
-                    <div key={index} className="flex items-start justify-between p-4 border rounded-lg hover:bg-gray-50">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{award.award}</h3>
-                        {award.category && (
-                          <p className="text-sm text-gray-600">{award.category}</p>
-                        )}
-                        <div className="flex items-center mt-2 text-sm text-gray-500">
-                          {award.deadline && (
-                            <>
-                              <Calendar className="w-4 h-4 mr-1" />
-                              Deadline: {formatDate(award.deadline)}
-                            </>
-                          )}
-                        </div>
-                        {award.notes && (
-                          <p className="text-sm text-gray-600 mt-1">{award.notes}</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(award.status)}`}>
-                          {getStatusIcon(award.status)}
-                          <span className="ml-1">{award.status}</span>
-                        </span>
-                        {award.dateAnnounced && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Announced: {formatDate(award.dateAnnounced)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Won Awards */}
-          {won.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="p-6 border-b">
-                <h2 className="text-lg font-semibold text-gray-900">Awards Won</h2>
-                <p className="text-sm text-gray-600">Congratulations on these achievements!</p>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {won.map((award, index) => (
-                    <div key={index} className="flex items-start justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{award.award}</h3>
-                        {award.category && (
-                          <p className="text-sm text-gray-600">{award.category}</p>
-                        )}
-                        {award.notes && (
-                          <p className="text-sm text-gray-600 mt-1">{award.notes}</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-                          <Trophy className="w-3 h-3 mr-1" />
-                          {award.status}
-                        </span>
-                        {award.dateAnnounced && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Announced: {formatDate(award.dateAnnounced)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* All Awards Table */}
-          <div className="bg-white rounded-lg shadow-sm border">
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">All Awards</h2>
-              <p className="text-sm text-gray-600">Complete awards tracking history</p>
-            </div>
+          </div>
+          
+          {filteredAwards.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Award
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Category
+                      Award / Category
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Type
@@ -373,55 +420,90 @@ export default function AwardsPage() {
                       Deadline
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date Announced
+                      Announced
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client/Individual
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {awards.map((award, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
+                  {filteredAwards.map((award) => (
+                    <tr key={award.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{award.award}</div>
-                        {(award.individual || award.agency) && (
-                          <div className="text-sm text-gray-500">
-                            {award.individual && `Individual: ${award.individual}`}
-                            {award.individual && award.agency && ' • '}
-                            {award.agency && `Agency: ${award.agency}`}
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {award.award || 'Unnamed Award'}
                           </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {award.category || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {award.individual ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            Individual
-                          </span>
-                        ) : award.agency ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            Agency
-                          </span>
-                        ) : '-'}
+                          {award.category && (
+                            <div className="text-xs text-gray-500">{award.category}</div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(award.status)}`}>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          award.isAgencyEntry 
+                            ? 'bg-purple-100 text-purple-800' 
+                            : 'bg-indigo-100 text-indigo-800'
+                        }`}>
+                          {award.isAgencyEntry ? (
+                            <>
+                              <Building className="w-3 h-3 mr-1" />
+                              Agency
+                            </>
+                          ) : (
+                            <>
+                              <Users className="w-3 h-3 mr-1" />
+                              Client
+                            </>
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(award.status)}`}>
                           {getStatusIcon(award.status)}
                           <span className="ml-1">{award.status || 'Unknown'}</span>
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(award.deadline)}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`text-sm ${isUpcoming(award.deadline) ? 'text-orange-600 font-medium' : 'text-gray-900'}`}>
+                          {formatDate(award.deadline)}
+                        </div>
+                        {isUpcoming(award.deadline) && (
+                          <div className="text-xs text-orange-500">Upcoming</div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(award.dateAnnounced)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {award.isAgencyEntry ? (
+                            award.individual || 'Team Entry'
+                          ) : (
+                            award.client || 'No Client Specified'
+                          )}
+                        </div>
+                        {award.notes && (
+                          <div className="text-xs text-gray-500 truncate max-w-xs">
+                            {award.notes}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          ) : (
+            <div className="p-8 text-center">
+              <Award className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 mb-2">No awards found</p>
+              <p className="text-sm text-gray-400">
+                Try adjusting your filters or adding award entries to your spreadsheet
+              </p>
+            </div>
+          )}
         </div>
       </main>
     </div>

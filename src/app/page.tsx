@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import LoadingState from '@/components/LoadingState';
 import ErrorState from '@/components/ErrorState';
+import UniversalFilters, { FilterState, applyDateFilter } from '@/components/UniversalFilters';
 import { getPublicationInfo } from '@/lib/publicationData';
 import { 
   cleanText, 
@@ -50,6 +51,7 @@ interface ProcessedCoverageItem {
   title: string;
   client: string;
   reachData: ReturnType<typeof getPublicationInfo>;
+  [key: string]: unknown;
 }
 
 interface RecentActivity {
@@ -73,6 +75,7 @@ interface DashboardMetrics {
   qualityScore: number;
   avgReach: number;
   recentActivity: RecentActivity[];
+  timeRangeLabel: string;
 }
 
 export default function DashboardPage() {
@@ -80,8 +83,18 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  
+  // Initialize filters with YTD as default
+  const [filters, setFilters] = useState<FilterState>({
+    dateRange: 'ytd',
+    year: new Date().getFullYear().toString(),
+    tier: 'all',
+    client: '',
+    entryType: 'all',
+    status: 'all'
+  });
 
-  const calculateMetrics = useCallback((data: WorksheetData) => {
+  const calculateMetrics = useCallback((data: WorksheetData, filters: FilterState) => {
     // Get coverage data from both sheets
     const mediaTracker2025 = data.sheets['Media Tracker (2025)'] || [];
     const mediaTracker2024 = data.sheets['Media Tracker'] || [];
@@ -109,30 +122,35 @@ export default function DashboardPage() {
       client: cleanText(String(item['Client (if applicable)'] || item.Client || '')) || 'General Coverage',
       reachData: getPublicationInfo(String(item.Outlet || ''))
     }));
+
+    // Apply date filtering based on current filter settings
+    const filteredCoverage = applyDateFilter(processedCoverage, filters, 'Date');
+    const filteredAwards = applyDateFilter(awards, filters, 'Date Announced');
+    const filteredOutreach = applyDateFilter(mediaRelations, filters, 'Date / Deadline');
     
-    // Basic counts
-    const totalCoverage = processedCoverage.length;
-    const totalAwards = awards.length;
+    // Basic counts for filtered data
+    const totalCoverage = filteredCoverage.length;
+    const totalAwards = filteredAwards.length;
     
-    // Calculate total reach and quality metrics
-    const totalReach = processedCoverage.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
+    // Calculate total reach and quality metrics for filtered data
+    const totalReach = filteredCoverage.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
     const avgReach = totalCoverage > 0 ? Math.round(totalReach / totalCoverage) : 0;
     
-    // Calculate quality score (tier-weighted)
-    const tier1Count = processedCoverage.filter(item => item.reachData.tier === 'tier1').length;
-    const tier2Count = processedCoverage.filter(item => item.reachData.tier === 'tier2').length;
-    const tier3Count = processedCoverage.filter(item => item.reachData.tier === 'tier3').length;
+    // Calculate quality score (tier-weighted) for filtered data
+    const tier1Count = filteredCoverage.filter(item => item.reachData.tier === 'tier1').length;
+    const tier2Count = filteredCoverage.filter(item => item.reachData.tier === 'tier2').length;
+    const tier3Count = filteredCoverage.filter(item => item.reachData.tier === 'tier3').length;
     
     const qualityScore = totalCoverage > 0 
       ? Math.round(((tier1Count * 3) + (tier2Count * 2) + (tier3Count * 1)) / (totalCoverage * 3) * 100)
       : 0;
     
-    // Calculate response rate
-    const outreachWithResponse = mediaRelations.filter(item => {
+    // Calculate response rate for filtered outreach
+    const outreachWithResponse = filteredOutreach.filter(item => {
       const status = String(item.Status || '').toLowerCase();
       return status.includes('submitted') || status.includes('response') || status.includes('scheduled');
     }).length;
-    const totalOutreach = mediaRelations.length;
+    const totalOutreach = filteredOutreach.length;
     const responseRate = totalOutreach > 0 ? Math.round((outreachWithResponse / totalOutreach) * 100) : 0;
     
     // Count upcoming deadlines (next 30 days)
@@ -145,51 +163,62 @@ export default function DashboardPage() {
       return !isNaN(deadline.getTime()) && deadline >= now && deadline <= thirtyDaysFromNow;
     }).length;
 
-    // Calculate trends (last 30 days vs previous 30 days)
-    const now30DaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const now60DaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+    // Calculate trends (compare current period with previous equivalent period)
+    const getPreviousPeriodData = () => {
+      const currentYear = parseInt(filters.year || new Date().getFullYear().toString());
+      const prevFilters = { ...filters, year: (currentYear - 1).toString() };
+      
+      if (filters.dateRange === 'month') {
+        // Compare with previous month
+        const currentMonth = new Date().getMonth();
+        const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        
+        const prevStart = new Date(prevYear, prevMonth, 1);
+        const prevEnd = new Date(prevYear, prevMonth + 1, 0);
+        
+        return {
+          coverage: processedCoverage.filter(item => {
+            const date = new Date(String(item.Date || ''));
+            return !isNaN(date.getTime()) && date >= prevStart && date <= prevEnd;
+          }),
+          awards: awards.filter(item => {
+            const date = new Date(String(item['Date Announced'] || ''));
+            return !isNaN(date.getTime()) && date >= prevStart && date <= prevEnd;
+          })
+        };
+      } else {
+        // Compare with same period last year
+        return {
+          coverage: applyDateFilter(processedCoverage, prevFilters, 'Date'),
+          awards: applyDateFilter(awards, prevFilters, 'Date Announced')
+        };
+      }
+    };
+
+    const previousPeriod = getPreviousPeriodData();
     
-    const recentCoverage = processedCoverage.filter(item => {
-      const date = new Date(String(item.Date || ''));
-      return !isNaN(date.getTime()) && date >= now30DaysAgo;
-    });
-    
-    const previousCoverage = processedCoverage.filter(item => {
-      const date = new Date(String(item.Date || ''));
-      return !isNaN(date.getTime()) && date >= now60DaysAgo && date < now30DaysAgo;
-    });
-    
-    const coverageTrend = previousCoverage.length > 0 ? 
-      Math.round(((recentCoverage.length - previousCoverage.length) / previousCoverage.length) * 100) : 0;
+    const coverageTrend = previousPeriod.coverage.length > 0 ? 
+      Math.round(((filteredCoverage.length - previousPeriod.coverage.length) / previousPeriod.coverage.length) * 100) : 0;
 
     // Calculate reach trend
-    const recentReach = recentCoverage.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
-    const previousReach = previousCoverage.reduce((sum, item) => sum + (item.reachData.estimatedReach || 0), 0);
+    const currentReach = totalReach;
+    const previousReach = previousPeriod.coverage.reduce((sum, item) => sum + (item.reachData?.estimatedReach || 0), 0);
     const reachTrend = previousReach > 0 ? 
-      Math.round(((recentReach - previousReach) / previousReach) * 100) : 0;
+      Math.round(((currentReach - previousReach) / previousReach) * 100) : 0;
 
     // Awards trend
-    const recentAwards = awards.filter(item => {
-      const date = new Date(String(item['Date Announced'] || item['Date / Deadline'] || ''));
-      return !isNaN(date.getTime()) && date >= now30DaysAgo;
-    }).length;
-    
-    const previousAwards = awards.filter(item => {
-      const date = new Date(String(item['Date Announced'] || item['Date / Deadline'] || ''));
-      return !isNaN(date.getTime()) && date >= now60DaysAgo && date < now30DaysAgo;
-    }).length;
-    
-    const awardsTrend = previousAwards > 0 ? 
-      Math.round(((recentAwards - previousAwards) / previousAwards) * 100) : 0;
+    const awardsTrend = previousPeriod.awards.length > 0 ? 
+      Math.round(((filteredAwards.length - previousPeriod.awards.length) / previousPeriod.awards.length) * 100) : 0;
 
-    // Get recent activity - last 5 items overall
+    // Get recent activity from filtered data - last 5 items overall
     const recentActivity: RecentActivity[] = [];
 
-    // Get all activity items with timestamps
+    // Get all activity items with timestamps from filtered data
     const allActivityItems: (RecentActivity & { timestamp: number })[] = [];
 
     // Recent coverage with better titles
-    processedCoverage.forEach(item => {
+    filteredCoverage.forEach(item => {
       const date = new Date(String(item.Date || ''));
       if (!isNaN(date.getTime())) {
         allActivityItems.push({
@@ -203,8 +232,8 @@ export default function DashboardPage() {
       }
     });
 
-    // Recent awards
-    awards.forEach(item => {
+    // Recent awards from filtered data
+    filteredAwards.forEach(item => {
       const date = new Date(String(item['Date Announced'] || item['Date / Deadline'] || ''));
       if (!isNaN(date.getTime())) {
         allActivityItems.push({
@@ -217,8 +246,8 @@ export default function DashboardPage() {
       }
     });
 
-    // Recent outreach
-    mediaRelations.forEach(item => {
+    // Recent outreach from filtered data
+    filteredOutreach.forEach(item => {
       const date = new Date(String(item['Date / Deadline'] || ''));
       if (!isNaN(date.getTime())) {
         const contactName = cleanText(String(item.Contact || ''));
@@ -258,6 +287,18 @@ export default function DashboardPage() {
 
     recentActivity.push(...uniqueActivities);
 
+    // Generate time range label for display
+    const getTimeRangeLabel = () => {
+      switch (filters.dateRange) {
+        case 'ytd': return `${filters.year || new Date().getFullYear()} YTD`;
+        case 'quarter': return `Q${filters.quarter || Math.ceil((new Date().getMonth() + 1) / 3)} ${filters.year || new Date().getFullYear()}`;
+        case 'month': return 'This Month';
+        case 'all': return 'All Time';
+        case 'custom': return 'Custom Period';
+        default: return `${filters.year || new Date().getFullYear()} YTD`;
+      }
+    };
+
     return {
       totalCoverage,
       totalReach,
@@ -269,7 +310,8 @@ export default function DashboardPage() {
       awardsTrend,
       qualityScore,
       avgReach,
-      recentActivity: recentActivity.slice(0, 5)
+      recentActivity: recentActivity.slice(0, 5),
+      timeRangeLabel: getTimeRangeLabel()
     };
   }, []);
 
@@ -297,8 +339,6 @@ export default function DashboardPage() {
         // Still process the data even if cached
       }
       
-      const calculatedMetrics = calculateMetrics(result);
-      setMetrics(calculatedMetrics);
       setData(result);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load data';
@@ -306,7 +346,15 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [calculateMetrics]);
+  }, []);
+
+  // Recalculate metrics when data or filters change
+  useEffect(() => {
+    if (data) {
+      const calculatedMetrics = calculateMetrics(data, filters);
+      setMetrics(calculatedMetrics);
+    }
+  }, [data, filters, calculateMetrics]);
 
   useEffect(() => {
     fetchAllSheetsData();
@@ -339,6 +387,22 @@ export default function DashboardPage() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Dashboard
+          </h1>
+          <p className="text-gray-600">
+            Performance overview and recent activity for {metrics.timeRangeLabel}
+          </p>
+        </div>
+
+        {/* Universal Filters */}
+        <UniversalFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          compactMode={true}
+        />
+
         {/* Key Metrics Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
@@ -346,7 +410,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Footprint</p>
                 <p className="text-2xl font-bold text-gray-900">{formatNumber(metrics.totalReach)}</p>
-                <p className="text-xs text-gray-500">All-time estimated reach</p>
+                <p className="text-xs text-gray-500">Estimated reach - {metrics.timeRangeLabel}</p>
               </div>
               <div className="p-3 bg-blue-100 rounded-lg">
                 <Eye className="w-6 h-6 text-blue-600" />
@@ -359,7 +423,7 @@ export default function DashboardPage() {
                 <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
               )}
               <span className={`text-sm ${metrics.reachTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {Math.abs(metrics.reachTrend)}% vs last month
+                {Math.abs(metrics.reachTrend)}% vs previous period
               </span>
             </div>
           </div>
@@ -369,6 +433,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Articles Published</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.totalCoverage}</p>
+                <p className="text-xs text-gray-500">{metrics.timeRangeLabel}</p>
               </div>
               <div className="p-3 bg-green-100 rounded-lg">
                 <FileText className="w-6 h-6 text-green-600" />
@@ -381,7 +446,7 @@ export default function DashboardPage() {
                 <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
               )}
               <span className={`text-sm ${metrics.coverageTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {Math.abs(metrics.coverageTrend)}% vs last month
+                {Math.abs(metrics.coverageTrend)}% vs previous period
               </span>
             </div>
           </div>
@@ -391,13 +456,14 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Quality Score</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.qualityScore}%</p>
+                <p className="text-xs text-gray-500">Tier-weighted score</p>
               </div>
               <div className="p-3 bg-purple-100 rounded-lg">
                 <BarChart3 className="w-6 h-6 text-purple-600" />
               </div>
             </div>
             <div className="mt-2">
-              <span className="text-sm text-gray-500">Tier-weighted score</span>
+              <span className="text-sm text-gray-500">Based on publication tiers</span>
             </div>
           </div>
 
@@ -406,13 +472,14 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg Reach</p>
                 <p className="text-2xl font-bold text-gray-900">{formatNumber(metrics.avgReach)}</p>
+                <p className="text-xs text-gray-500">Per article</p>
               </div>
               <div className="p-3 bg-orange-100 rounded-lg">
                 <Target className="w-6 h-6 text-orange-600" />
               </div>
             </div>
             <div className="mt-2">
-              <span className="text-sm text-gray-500">Per article</span>
+              <span className="text-sm text-gray-500">3% of publication readership</span>
             </div>
           </div>
         </div>
@@ -424,6 +491,7 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Awards Tracked</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.totalAwards}</p>
+                <p className="text-xs text-gray-500">{metrics.timeRangeLabel}</p>
               </div>
               <div className="p-3 bg-yellow-100 rounded-lg">
                 <Award className="w-6 h-6 text-yellow-600" />
@@ -436,7 +504,7 @@ export default function DashboardPage() {
                 <TrendingDown className="w-4 h-4 text-red-500 mr-1" />
               )}
               <span className={`text-sm ${metrics.awardsTrend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {Math.abs(metrics.awardsTrend)}% vs last month
+                {Math.abs(metrics.awardsTrend)}% vs previous period
               </span>
             </div>
           </div>
@@ -446,13 +514,14 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Response Rate</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.responseRate}%</p>
+                <p className="text-xs text-gray-500">Media outreach success</p>
               </div>
               <div className="p-3 bg-indigo-100 rounded-lg">
                 <Users className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
             <div className="mt-2">
-              <span className="text-sm text-gray-500">Outreach efficiency</span>
+              <span className="text-sm text-gray-500">Responses to pitches</span>
             </div>
           </div>
 
@@ -461,24 +530,25 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Upcoming Deadlines</p>
                 <p className="text-2xl font-bold text-gray-900">{metrics.upcomingDeadlines}</p>
+                <p className="text-xs text-gray-500">Next 30 days</p>
               </div>
               <div className="p-3 bg-red-100 rounded-lg">
                 <Calendar className="w-6 h-6 text-red-600" />
               </div>
             </div>
             <div className="mt-2">
-              <span className="text-sm text-gray-500">Next 30 days</span>
+              <span className="text-sm text-gray-500">Awards & content deadlines</span>
             </div>
           </div>
         </div>
 
-        {/* Recent Activity Section */}
+        {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Recent Activity - Full Column */}
           <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border">
             <div className="p-6 border-b">
               <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-              <p className="text-sm text-gray-600">Latest 5 activities across all areas</p>
+              <p className="text-sm text-gray-600">Latest activities for {metrics.timeRangeLabel}</p>
             </div>
             <div className="p-6">
               {metrics.recentActivity.length > 0 ? (
@@ -493,47 +563,49 @@ export default function DashboardPage() {
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {activity.title}
                           </p>
-                          <span className="text-xs text-gray-500 ml-2 flex-shrink-0">
+                          <span className="text-xs text-gray-500 whitespace-nowrap ml-2">
                             {formatDate(activity.date)}
                           </span>
                         </div>
-                        <div className="mt-1">
+                        <div className="flex items-center gap-2 mt-1">
                           {activity.outlet && (
                             <span className="text-xs text-gray-600">{activity.outlet}</span>
                           )}
                           {activity.status && (
-                            <span className="text-xs text-gray-600 ml-2">{activity.status}</span>
-                          )}
-                          {activity.link && (
-                            <a 
-                              href={activity.link} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:text-blue-800 ml-2 inline-flex items-center"
-                            >
-                              View <ExternalLink className="w-3 h-3 ml-1" />
-                            </a>
+                            <span className="text-xs text-gray-600">• {activity.status}</span>
                           )}
                         </div>
+                        {activity.link && (
+                          <a 
+                            href={activity.link} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center text-xs text-blue-600 hover:text-blue-800 mt-1"
+                          >
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            View
+                          </a>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4">
-                  <Clock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-500">No recent activity</p>
+                <div className="text-center py-8">
+                  <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No recent activity for this time period</p>
+                  <p className="text-sm text-gray-400">Try expanding your date range</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Analytics Column */}
+          {/* Performance Insights - Compact */}
           <div className="space-y-6">
-            {/* Performance Insights - Compact */}
             <div className="bg-white rounded-lg shadow-sm border">
               <div className="p-4 border-b">
                 <h2 className="text-base font-semibold text-gray-900">Performance Insights</h2>
+                <p className="text-xs text-gray-500">Compared to previous period</p>
               </div>
               <div className="p-4">
                 <div className="space-y-4">
@@ -600,23 +672,12 @@ export default function DashboardPage() {
             <div className="bg-white rounded-lg shadow-sm border">
               <div className="p-4 border-b">
                 <h2 className="text-base font-semibold text-gray-900">Quick Stats</h2>
+                <p className="text-xs text-gray-500">{metrics.timeRangeLabel}</p>
               </div>
               <div className="p-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Articles this month</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {(() => {
-                      const now = new Date();
-                      const thisMonth = now.getMonth();
-                      const thisYear = now.getFullYear();
-                      return metrics.recentActivity.filter(activity => {
-                        const activityDate = new Date(activity.date);
-                        return activityDate.getMonth() === thisMonth && 
-                               activityDate.getFullYear() === thisYear &&
-                               activity.type === 'coverage';
-                      }).length;
-                    })()}
-                  </span>
+                  <span className="text-sm text-gray-600">Total articles</span>
+                  <span className="text-sm font-semibold text-gray-900">{metrics.totalCoverage}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Avg daily reach</span>

@@ -45,7 +45,7 @@ export default function Header() {
         </button>
 
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex space-x-6">
+        <nav className="hidden md:flex space-x-4">
           <Link href="/" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Dashboard
           </Link>
@@ -55,13 +55,19 @@ export default function Header() {
           <Link href="/awards" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Awards
           </Link>
-          <Link href="/events" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
-            Events
+          <Link href="/client-permissions" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
+            Permissions
+          </Link>
+          <Link href="/speaking" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
+            Speaking
+          </Link>
+          <Link href="/content" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
+            Content
           </Link>
           <Link href="/outreach" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
             Outreach
           </Link>
-          <Link href="/worksheets" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10">
+          <Link href="/worksheets" className="hover:text-yellow-300 transition-colors px-3 py-2 rounded-lg hover:bg-white/10 text-sm">
             All Data
           </Link>
         </nav>
@@ -92,11 +98,25 @@ export default function Header() {
             🏆 Awards
           </Link>
           <Link 
-            href="/events" 
+            href="/client-permissions" 
             className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
             onClick={() => setIsMenuOpen(false)}
           >
-            🎤 Events
+            🔐 Client Permissions
+          </Link>
+          <Link 
+            href="/speaking" 
+            className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            🎤 Speaking Opportunities
+          </Link>
+          <Link 
+            href="/content" 
+            className="block py-3 hover:bg-white/10 px-3 rounded-lg transition-colors"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            📝 Content Calendar
           </Link>
           <Link 
             href="/outreach" 

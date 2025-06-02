@@ -3,9 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bash -c 'function cleanup() { pkill -f \"next\" 2>/dev/null || true; pkill -f \"5454\" 2>/dev/null || true; pkill -f \"pr-tracker\" 2>/dev/null || true; for port in $(lsof -ti:5454 2>/dev/null); do kill -9 $port 2>/dev/null || true; done; sleep 2; rm -rf .next node_modules/.cache .vercel 2>/dev/null || true; }; cleanup && cleanup && next dev -p 5454'",
-    "dev-emergency": "node scripts/emergency-dev.js",
-    "dev-simple": "next dev -p 5454",
+    "dev": "lsof -ti:5454 | xargs kill -9 2>/dev/null || true && rm -rf .next && next dev -p 5454",
+    "dev-basic": "next dev -p 5454",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
