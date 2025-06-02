@@ -77,7 +77,11 @@ export default function ContentCalendarPage() {
   });
 
   const processContentData = useCallback((data: WorksheetData) => {
-    const contentSheet = data.sheets['Content'] || [];
+    const contentSheet = data.sheets['Content Calendar'] || 
+                         data.sheets['Content'] || 
+                         data.sheets['Content Planning'] || 
+                         data.sheets['Editorial Calendar'] || 
+                         data.sheets['Blog Calendar'] || [];
     
     const processedContent = contentSheet.map((item, index) => ({
       title: String(item.Title || item['Content Title'] || item.Name || ''),

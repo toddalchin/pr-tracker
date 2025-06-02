@@ -103,6 +103,27 @@ const LineChart = ({ data, color, label }: {
   );
 };
 
+// Helper function to clean client names
+const cleanClientName = (clientName: string): string => {
+  if (!clientName || clientName.trim() === '') return 'No Client';
+  
+  let cleaned = clientName.trim();
+  
+  // Remove "N/A " prefix (with space) or "N/A" at the start
+  if (cleaned.toLowerCase().startsWith('n/a ')) {
+    cleaned = cleaned.substring(4).trim();
+  } else if (cleaned.toLowerCase() === 'n/a') {
+    return 'No Client';
+  }
+  
+  // Capitalize first letter if it exists
+  if (cleaned.length > 0) {
+    cleaned = cleaned.charAt(0).toUpperCase() + cleaned.substring(1);
+  }
+  
+  return cleaned || 'No Client';
+};
+
 export default function CoveragePage() {
   const [mounted, setMounted] = useState(false);
   const [allCoverageItems, setAllCoverageItems] = useState<CoverageItem[]>([]);
@@ -186,7 +207,7 @@ export default function CoveragePage() {
     return allCoverageItems.map(item => ({
       ...item,
       title: cleanText(item['Article '] || item.Article) || 'Untitled',
-      client: cleanText(item['Client (if applicable)'] || item.Client) || 'No Client',
+      client: cleanClientName(cleanText(item['Client (if applicable)'] || item.Client) || 'No Client'),
       reachData: getPublicationInfo(item.Outlet)
     }));
   }, [allCoverageItems]);
@@ -409,13 +430,13 @@ export default function CoveragePage() {
           }}
           onFiltersChange={(newFilters) => {
             setFilters({
-              year: newFilters.year || 'all',
+              year: newFilters.year || (newFilters.dateRange === 'all' ? 'all' : new Date().getFullYear().toString()),
               quarter: newFilters.quarter || 'all',
               tier: newFilters.tier || 'all',
               client: newFilters.client || ''
             });
           }}
-          availableYears={availableYears}
+          availableYears={['2025', '2024', ...availableYears.filter(year => !['2025', '2024'].includes(year))]}
           showTierFilter={true}
           showClientFilter={true}
         />

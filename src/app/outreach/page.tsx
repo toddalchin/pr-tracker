@@ -114,7 +114,7 @@ export default function OutreachPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">
-            Outreach
+            Media Relations
           </h1>
         </div>
 
@@ -208,10 +208,6 @@ export default function OutreachPage() {
                                 {contact.Type}
                               </div>
                             )}
-                            <div className="flex items-center text-sm text-gray-600 mt-1">
-                              <Mail className="w-4 h-4 mr-1" />
-                              {contact.Email || 'No email'}
-                            </div>
                             {contact['Date / Deadline'] && (
                               <div className="flex items-center text-sm text-gray-500 mt-1">
                                 <Calendar className="w-4 h-4 mr-1" />
@@ -250,9 +246,6 @@ export default function OutreachPage() {
                         Outlet
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Email
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -284,9 +277,6 @@ export default function OutreachPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {contact.Outlet || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {contact.Email || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(contact.Status)}`}>

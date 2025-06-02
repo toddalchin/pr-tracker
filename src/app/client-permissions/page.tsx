@@ -67,7 +67,11 @@ export default function ClientPermissionsPage() {
   const currentYear = new Date().getFullYear();
   
   const processPermissionsData = useCallback((data: WorksheetData) => {
-    const permissionsSheet = data.sheets['Client Permissions'] || [];
+    const permissionsSheet = data.sheets['Client Permissions'] || 
+                            data.sheets['Permissions'] || 
+                            data.sheets['Permission Requests'] || 
+                            data.sheets['Client Permission Requests'] || 
+                            data.sheets['Usage Rights'] || [];
     
     const processedPermissions = permissionsSheet.map((item, index) => ({
       client: String(item.Client || item['Client Name'] || ''),
