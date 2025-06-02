@@ -42,7 +42,4 @@ export async function GET() {
     message: 'Webhook endpoint is active',
     lastUpdate: cacheInvalidationStore.get('lastUpdate') || 0
   });
-}
-
-// Export the cache invalidation store for use in other API routes
-export { cacheInvalidationStore }; 
+} 
